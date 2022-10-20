@@ -184,17 +184,33 @@ impl<'a> Interpreter<'a> {
         &mut self.memory.context_memory[0].segments[Segment::TrieData as usize].content
     }
 
-    pub(crate) fn get_rlp_memory(&self) -> Vec<u8> {
-        self.memory.context_memory[0].segments[Segment::RlpRaw as usize]
+    pub(crate) fn get_memory_segment(&self, segment: Segment) -> Vec<u8> {
+        self.memory.context_memory[0].segments[segment as usize]
             .content
             .iter()
             .map(|x| x.as_u32() as u8)
             .collect()
     }
 
+    pub(crate) fn get_rlp_memory(&self) -> Vec<u8> {
+        self.get_memory_segment(Segment::RlpRaw)
+    }
+
+    pub(crate) fn get_kernel_general_memory(&self) -> Vec<u8> {
+        self.get_memory_segment(Segment::KernelGeneral)
+    }
+
+    pub(crate) fn set_memory_segment(&mut self, segment: Segment, memory: Vec<u8>) {
+        self.memory.context_memory[0].segments[segment as usize].content =
+            memory.into_iter().map(U256::from).collect();
+    }
+
     pub(crate) fn set_rlp_memory(&mut self, rlp: Vec<u8>) {
-        self.memory.context_memory[0].segments[Segment::RlpRaw as usize].content =
-            rlp.into_iter().map(U256::from).collect();
+        self.set_memory_segment(Segment::RlpRaw, rlp);
+    }
+
+    pub(crate) fn set_kernel_general_memory(&mut self, memory: Vec<u8>) {
+        self.set_memory_segment(Segment::KernelGeneral, memory);
     }
 
     fn incr(&mut self, n: usize) {
