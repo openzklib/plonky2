@@ -666,9 +666,15 @@ impl<'a> Interpreter<'a> {
     }
 
     fn run_mload_general(&mut self) {
-        let context = self.pop().as_usize();
-        let segment = Segment::all()[self.pop().as_usize()];
-        let offset = self.pop().as_usize();
+        let context_o = self.pop();
+        let segment_o = self.pop();
+        let offset_o = self.pop();
+
+        dbg!(offset_o);
+
+        let context = context_o.as_usize();
+        let segment = Segment::all()[segment_o.as_usize()];
+        let offset = offset_o.as_usize();
         let value = self.memory.mload_general(context, segment, offset);
         assert!(value.bits() <= segment.bit_range());
         self.push(value);
