@@ -58,17 +58,12 @@ impl InterpreterMemory {
     }
 
     fn mstore_general(&mut self, context: usize, segment: Segment, offset: usize, value: U256) {
-        
         assert!(
             value.bits() <= segment.bit_range(),
             "Value written to memory exceeds expected range of {:?} segment",
             segment
         );
-        dbg!(self.context_memory[context].segments[segment as usize].clone());
-        self.context_memory[context].segments[segment as usize].set(offset, value);
-        dbg!(self.context_memory[context].segments[segment as usize].clone());
-
-        ()
+        self.context_memory[context].segments[segment as usize].set(offset, value)
     }
 }
 
@@ -671,15 +666,9 @@ impl<'a> Interpreter<'a> {
     }
 
     fn run_mload_general(&mut self) {
-        let context_o = self.pop();
-        let segment_o = self.pop();
-        let offset_o = self.pop();
-
-        dbg!(offset_o);
-
-        let context = context_o.as_usize();
-        let segment = Segment::all()[segment_o.as_usize()];
-        let offset = offset_o.as_usize();
+        let context = self.pop().as_usize();
+        let segment = Segment::all()[self.pop().as_usize()];
+        let offset = self.pop().as_usize();
         let value = self.memory.mload_general(context, segment, offset);
         assert!(value.bits() <= segment.bit_range());
         self.push(value);
