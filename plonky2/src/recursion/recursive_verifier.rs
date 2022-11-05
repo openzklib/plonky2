@@ -1,5 +1,6 @@
 use crate::field::extension::Extendable;
-use crate::hash::hash_types::{HashOutTarget, RichField};
+use crate::field::types::Field;
+use crate::hash::hash_types::HashOutTarget;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::circuit_data::{CommonCircuitData, VerifierCircuitTarget};
 use crate::plonk::config::{AlgebraicHasher, GenericConfig};
@@ -12,7 +13,7 @@ use crate::plonk::vars::EvaluationTargets;
 use crate::util::reducing::ReducingFactorTarget;
 use crate::with_context;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Recursively verifies an inner proof.
     pub fn verify_proof<C: GenericConfig<D, F = F>>(
         &mut self,
@@ -327,7 +328,7 @@ mod tests {
     );
 
     /// Creates a dummy proof which should have roughly `num_dummy_gates` gates.
-    fn dummy_proof<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+    fn dummy_proof<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
         config: &CircuitConfig,
         num_dummy_gates: u64,
     ) -> Result<Proof<F, C, D>> {
@@ -345,7 +346,7 @@ mod tests {
     }
 
     fn recursive_proof<
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
         InnerC: GenericConfig<D, F = F>,
         const D: usize,
@@ -406,11 +407,7 @@ mod tests {
     }
 
     /// Test serialization and print some size info.
-    fn test_serialization<
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F>,
-        const D: usize,
-    >(
+    fn test_serialization<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
         proof: &ProofWithPublicInputs<F, C, D>,
         vd: &VerifierOnlyCircuitData<C, D>,
         cd: &CommonCircuitData<F, D>,

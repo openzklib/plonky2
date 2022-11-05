@@ -8,7 +8,7 @@ use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::types::Field;
 use crate::fri::structure::{FriOpenings, FriOpeningsTarget};
 use crate::fri::witness_util::set_fri_proof_target;
-use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::{BoolTarget, Target};

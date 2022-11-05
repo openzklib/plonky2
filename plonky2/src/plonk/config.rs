@@ -9,7 +9,7 @@ use crate::field::extension::quadratic::QuadraticExtension;
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::goldilocks_field::GoldilocksField;
 use crate::field::types::Field;
-use crate::hash::hash_types::{HashOut, RichField};
+use crate::hash::hash_types::HashOut;
 use crate::hash::hashing::{PlonkyPermutation, SPONGE_WIDTH};
 use crate::hash::keccak::KeccakHash;
 use crate::hash::poseidon::PoseidonHash;

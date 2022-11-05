@@ -6,8 +6,9 @@ use anyhow::{ensure, Result};
 use itertools::Itertools;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::gates::noop::NoopGate;
-use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::target::{BoolTarget, Target};
 use crate::iop::witness::{PartialWitness, Witness};
@@ -21,7 +22,7 @@ use crate::recursion::conditional_recursive_verifier::dummy_proof;
 
 pub struct CyclicRecursionData<
     'a,
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 > {
@@ -65,7 +66,7 @@ impl<C: GenericConfig<D>, const D: usize> VerifierOnlyCircuitData<C, D> {
 }
 
 impl VerifierCircuitTarget {
-    fn from_slice<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+    fn from_slice<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
         slice: &[Target],
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<Self> {
@@ -90,7 +91,7 @@ impl VerifierCircuitTarget {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Cyclic recursion gadget.
     /// WARNING: Do not register any public input after calling this! TODO: relax this
     pub fn cyclic_recursion<C: GenericConfig<D, F = F>>(
@@ -168,7 +169,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
 
 /// Set the targets in a `CyclicRecursionTarget` to their corresponding values in a `CyclicRecursionData`.
 pub fn set_cyclic_recursion_data_target<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -234,7 +235,7 @@ where
 /// Checks that the `base_case` flag is boolean and that the purported verifier data in the public inputs
 /// match the real verifier data.
 pub fn check_cyclic_proof_verifier_data<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -259,7 +260,6 @@ mod tests {
     use crate::field::extension::Extendable;
     use crate::field::types::{Field, PrimeField64};
     use crate::gates::noop::NoopGate;
-    use crate::hash::hash_types::RichField;
     use crate::hash::hashing::hash_n_to_hash_no_pad;
     use crate::hash::poseidon::{PoseidonHash, PoseidonPermutation};
     use crate::iop::witness::PartialWitness;
@@ -270,9 +270,9 @@ mod tests {
         check_cyclic_proof_verifier_data, set_cyclic_recursion_data_target, CyclicRecursionData,
     };
 
-    // Generates `CommonCircuitData` usable for recursion.
+    /// Generates `CommonCircuitData` usable for recursion.
     fn common_data_for_recursion<
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
         const D: usize,
     >() -> CommonCircuitData<F, D>

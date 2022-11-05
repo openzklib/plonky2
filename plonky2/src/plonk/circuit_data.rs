@@ -18,7 +18,7 @@ use crate::fri::structure::{
 use crate::fri::{FriConfig, FriParams};
 use crate::gates::gate::GateRef;
 use crate::gates::selectors::SelectorsInfo;
-use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::WitnessGenerator;

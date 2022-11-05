@@ -2,7 +2,6 @@ use anyhow::ensure;
 
 use crate::field::extension::Extendable;
 use crate::field::types::Field;
-use crate::hash::hash_types::RichField;
 use crate::plonk::circuit_data::CommonCircuitData;
 use crate::plonk::config::GenericConfig;
 use crate::plonk::proof::{OpeningSet, Proof, ProofWithPublicInputs};

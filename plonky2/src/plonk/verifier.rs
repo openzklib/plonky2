@@ -3,7 +3,6 @@ use anyhow::{ensure, Result};
 use crate::field::extension::Extendable;
 use crate::field::types::Field;
 use crate::fri::verifier::verify_fri_proof;
-use crate::hash::hash_types::RichField;
 use crate::plonk::circuit_data::{CommonCircuitData, VerifierOnlyCircuitData};
 use crate::plonk::config::{GenericConfig, Hasher};
 use crate::plonk::plonk_common::reduce_with_powers;

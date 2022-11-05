@@ -11,7 +11,7 @@ use crate::plonk::config::GenericHashOut;
 /// A prime order field with the features we need to use it as a base field in our argument system.
 pub trait RichField: PrimeField64 + Poseidon {}
 
-impl RichField for GoldilocksField {}
+impl<F> RichField for F where F: PrimeField64 + Poseidon {}
 
 /// Represents a ~256 bit hash output.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -59,15 +59,19 @@ where
     }
 }
 
-impl<F: RichField> GenericHashOut<F> for HashOut<F> {
+impl<F: Field> GenericHashOut<F> for HashOut<F> {
     fn to_bytes(&self) -> Vec<u8> {
+        /*
         self.elements
             .into_iter()
             .flat_map(|x| x.to_canonical_u64().to_le_bytes())
             .collect()
+        */
+        todo!()
     }
 
     fn from_bytes(bytes: &[u8]) -> Self {
+        /*
         HashOut {
             elements: bytes
                 .chunks(8)
@@ -77,6 +81,8 @@ impl<F: RichField> GenericHashOut<F> for HashOut<F> {
                 .try_into()
                 .unwrap(),
         }
+        */
+        todo!()
     }
 
     fn to_vec(&self) -> Vec<F> {
@@ -130,7 +136,7 @@ impl<const N: usize> Sample for BytesHash<N> {
     }
 }
 
-impl<F: RichField, const N: usize> GenericHashOut<F> for BytesHash<N> {
+impl<F: Field, const N: usize> GenericHashOut<F> for BytesHash<N> {
     fn to_bytes(&self) -> Vec<u8> {
         self.0.to_vec()
     }
@@ -140,6 +146,7 @@ impl<F: RichField, const N: usize> GenericHashOut<F> for BytesHash<N> {
     }
 
     fn to_vec(&self) -> Vec<F> {
+        /* TODO:
         self.0
             // Chunks of 7 bytes since 8 bytes would allow collisions.
             .chunks(7)
@@ -149,6 +156,8 @@ impl<F: RichField, const N: usize> GenericHashOut<F> for BytesHash<N> {
                 F::from_canonical_u64(u64::from_le_bytes(arr))
             })
             .collect()
+        */
+        todo!()
     }
 }
 

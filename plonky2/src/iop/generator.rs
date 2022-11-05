@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::types::Field;
-use crate::hash::hash_types::{HashOut, HashOutTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget};
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::{BoolTarget, Target};
 use crate::iop::wire::Wire;

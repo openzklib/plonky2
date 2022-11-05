@@ -15,7 +15,7 @@ use crate::fri::structure::{
     FriOpeningBatch, FriOpeningBatchTarget, FriOpenings, FriOpeningsTarget,
 };
 use crate::fri::FriParams;
-use crate::hash::hash_types::{MerkleCapTarget, RichField};
+use crate::hash::hash_types::MerkleCapTarget;
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::Target;

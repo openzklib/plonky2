@@ -4,7 +4,6 @@ use core::ops::Range;
 use crate::field::extension::algebra::ExtensionAlgebra;
 use crate::field::extension::{Extendable, FieldExtension, OEF};
 use crate::field::types::Field;
-use crate::hash::hash_types::RichField;
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 

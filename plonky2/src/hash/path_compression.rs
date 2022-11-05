@@ -5,7 +5,6 @@ use hashbrown::HashMap;
 use num::Integer;
 
 use crate::field::types::Field;
-use crate::hash::hash_types::RichField;
 use crate::hash::merkle_proofs::MerkleProof;
 use crate::plonk::config::Hasher;
 

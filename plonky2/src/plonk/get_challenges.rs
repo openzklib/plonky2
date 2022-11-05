@@ -9,7 +9,7 @@ use crate::field::types::Field;
 use crate::fri::proof::{CompressedFriProof, FriChallenges, FriProof, FriProofTarget};
 use crate::fri::verifier::{compute_evaluation, fri_combine_initial, PrecomputedReducedOpenings};
 use crate::gadgets::polynomial::PolynomialCoeffsExtTarget;
-use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::challenger::{Challenger, RecursiveChallenger};
 use crate::iop::target::Target;

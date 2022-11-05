@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
 use crate::field::types::Field;
-use crate::hash::hash_types::{HashOut, HashOutTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget};
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::config::AlgebraicHasher;

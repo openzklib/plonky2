@@ -7,10 +7,9 @@ use core::ops::Range;
 
 use crate::field::extension::algebra::ExtensionAlgebra;
 use crate::field::extension::{Extendable, FieldExtension};
-use crate::field::types::Field;
+use crate::field::types::{Field, PrimeField64};
 use crate::gates::gate::Gate;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::hash::hashing::SPONGE_WIDTH;
 use crate::hash::poseidon::Poseidon;
 use crate::iop::ext_target::{ExtensionAlgebraTarget, ExtensionTarget};
@@ -23,9 +22,11 @@ use crate::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBase};
 /// Poseidon MDS Gate
 #[derive(derivative::Derivative)]
 #[derivative(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct PoseidonMdsGate<F: RichField + Extendable<D> + Poseidon, const D: usize>(PhantomData<F>);
+pub struct PoseidonMdsGate<F: PrimeField64 + Extendable<D> + Poseidon, const D: usize>(
+    PhantomData<F>,
+);
 
-impl<F: RichField + Extendable<D> + Poseidon, const D: usize> PoseidonMdsGate<F, D> {
+impl<F: PrimeField64 + Extendable<D> + Poseidon, const D: usize> PoseidonMdsGate<F, D> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -115,7 +116,9 @@ impl<F: RichField + Extendable<D> + Poseidon, const D: usize> PoseidonMdsGate<F,
     }
 }
 
-impl<F: RichField + Extendable<D> + Poseidon, const D: usize> Gate<F, D> for PoseidonMdsGate<F, D> {
+impl<F: PrimeField64 + Extendable<D> + Poseidon, const D: usize> Gate<F, D>
+    for PoseidonMdsGate<F, D>
+{
     fn id(&self) -> String {
         format!("{self:?}<WIDTH={SPONGE_WIDTH}>")
     }
@@ -208,7 +211,7 @@ struct PoseidonMdsGenerator<const D: usize> {
     row: usize,
 }
 
-impl<F: RichField + Extendable<D> + Poseidon, const D: usize> SimpleGenerator<F>
+impl<F: PrimeField64 + Extendable<D> + Poseidon, const D: usize> SimpleGenerator<F>
     for PoseidonMdsGenerator<D>
 {
     fn dependencies(&self) -> Vec<Target> {

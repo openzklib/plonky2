@@ -5,12 +5,13 @@ use anyhow::{ensure, Result};
 use itertools::Itertools;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::fri::proof::{
     FriInitialTreeProofTarget, FriProofTarget, FriQueryRoundTarget, FriQueryStepTarget,
 };
 use crate::gadgets::polynomial::PolynomialCoeffsExtTarget;
 use crate::gates::noop::NoopGate;
-use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_proofs::MerkleProofTarget;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::{BoolTarget, Target};
@@ -27,11 +28,7 @@ use crate::util::ceil_div_usize;
 use crate::with_context;
 
 /// Generate a proof having a given `CommonCircuitData`.
-pub(crate) fn dummy_proof<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub(crate) fn dummy_proof<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     common_data: &CommonCircuitData<F, D>,
 ) -> Result<(
     ProofWithPublicInputs<F, C, D>,
@@ -69,7 +66,7 @@ pub(crate) fn dummy_proof<
     Ok((proof, data.verifier_only))
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Verify `proof0` if `condition` else verify `proof1`.
     /// `proof0` and `proof1` are assumed to use the same `CommonCircuitData`.
     pub fn conditionally_verify_proof<C: GenericConfig<D, F = F>>(

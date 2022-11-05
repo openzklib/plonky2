@@ -6,7 +6,6 @@ use crate::field::packed::PackedField;
 use crate::field::types::Field;
 use crate::fri::oracle::SALT_SIZE;
 use crate::gates::arithmetic_base::ArithmeticGate;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;

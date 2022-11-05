@@ -4,7 +4,7 @@ use crate::field::extension::algebra::ExtensionAlgebra;
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::packed::PackedField;
 use crate::field::types::Field;
-use crate::hash::hash_types::{HashOut, HashOutTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget};
 use crate::iop::ext_target::{ExtensionAlgebraTarget, ExtensionTarget};
 use crate::util::strided_view::PackedStridedView;
 

@@ -11,7 +11,7 @@ use crate::field::types::{Field, PrimeField64};
 use crate::gates::gate::Gate;
 use crate::gates::poseidon::PoseidonGate;
 use crate::gates::poseidon_mds::PoseidonMdsGate;
-use crate::hash::hash_types::{HashOut, RichField};
+use crate::hash::hash_types::HashOut;
 use crate::hash::hashing::{compress, hash_n_to_hash_no_pad, PlonkyPermutation, SPONGE_WIDTH};
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::{BoolTarget, Target};
@@ -216,7 +216,7 @@ pub trait Poseidon: PrimeField64 {
         v: &[ExtensionTarget<D>; WIDTH],
     ) -> ExtensionTarget<D>
     where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         debug_assert!(r < WIDTH);
         let mut res = builder.zero_extension();
@@ -275,7 +275,7 @@ pub trait Poseidon: PrimeField64 {
         state: &[ExtensionTarget<D>; WIDTH],
     ) -> [ExtensionTarget<D>; WIDTH]
     where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         // If we have enough routed wires, we will use PoseidonMdsGate.
         let mds_gate = PoseidonMdsGate::<Self, D>::new();
@@ -321,7 +321,7 @@ pub trait Poseidon: PrimeField64 {
         builder: &mut CircuitBuilder<Self, D>,
         state: &mut [ExtensionTarget<D>; WIDTH],
     ) where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         for i in 0..WIDTH {
             let c = <Self as Poseidon>::FAST_PARTIAL_FIRST_ROUND_CONSTANT[i];
@@ -367,7 +367,7 @@ pub trait Poseidon: PrimeField64 {
         state: &[ExtensionTarget<D>; WIDTH],
     ) -> [ExtensionTarget<D>; WIDTH]
     where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         let mut result = [builder.zero_extension(); WIDTH];
 
@@ -452,7 +452,7 @@ pub trait Poseidon: PrimeField64 {
         r: usize,
     ) -> [ExtensionTarget<D>; WIDTH]
     where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         let s0 = state[0];
         let mds0to0 = Self::MDS_MATRIX_CIRC[0] + Self::MDS_MATRIX_DIAG[0];
@@ -504,7 +504,7 @@ pub trait Poseidon: PrimeField64 {
         state: &mut [ExtensionTarget<D>; WIDTH],
         round_ctr: usize,
     ) where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         for i in 0..WIDTH {
             let c = ALL_ROUND_CONSTANTS[i + WIDTH * round_ctr];
@@ -529,7 +529,7 @@ pub trait Poseidon: PrimeField64 {
         x: ExtensionTarget<D>,
     ) -> ExtensionTarget<D>
     where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         // x |--> x^7
         builder.exp_u64_extension(x, 7)
@@ -559,7 +559,7 @@ pub trait Poseidon: PrimeField64 {
         builder: &mut CircuitBuilder<Self, D>,
         state: &mut [ExtensionTarget<D>; WIDTH],
     ) where
-        Self: RichField + Extendable<D>,
+        Self: Extendable<D>,
     {
         for i in 0..WIDTH {
             state[i] = <Self as Poseidon>::sbox_monomial_circuit(builder, state[i]);
@@ -630,7 +630,7 @@ pub trait Poseidon: PrimeField64 {
 }
 
 pub struct PoseidonPermutation;
-impl<F: RichField> PlonkyPermutation<F> for PoseidonPermutation {
+impl<F: PrimeField64 + Poseidon> PlonkyPermutation<F> for PoseidonPermutation {
     fn permute(input: [F; SPONGE_WIDTH]) -> [F; SPONGE_WIDTH] {
         F::poseidon(input)
     }
@@ -639,7 +639,7 @@ impl<F: RichField> PlonkyPermutation<F> for PoseidonPermutation {
 /// Poseidon hash function.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PoseidonHash;
-impl<F: RichField> Hasher<F> for PoseidonHash {
+impl<F: PrimeField64 + Poseidon> Hasher<F> for PoseidonHash {
     const HASH_SIZE: usize = 4 * 8;
     type Hash = HashOut<F>;
     type Permutation = PoseidonPermutation;
@@ -653,14 +653,14 @@ impl<F: RichField> Hasher<F> for PoseidonHash {
     }
 }
 
-impl<F: RichField> AlgebraicHasher<F> for PoseidonHash {
+impl<F: PrimeField64 + Poseidon> AlgebraicHasher<F> for PoseidonHash {
     fn permute_swapped<const D: usize>(
         inputs: [Target; SPONGE_WIDTH],
         swap: BoolTarget,
         builder: &mut CircuitBuilder<F, D>,
     ) -> [Target; SPONGE_WIDTH]
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         let gate_type = PoseidonGate::<F, D>::new();
         let gate = builder.add_gate(gate_type, vec![]);

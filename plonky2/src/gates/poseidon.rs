@@ -9,7 +9,6 @@ use crate::field::types::Field;
 use crate::gates::gate::Gate;
 use crate::gates::poseidon_mds::PoseidonMdsGate;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::hash::hashing::SPONGE_WIDTH;
 use crate::hash::poseidon;
 use crate::hash::poseidon::Poseidon;
@@ -28,9 +27,9 @@ use crate::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBase};
 /// sibling digests.
 #[derive(derivative::Derivative)]
 #[derivative(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct PoseidonGate<F: RichField + Extendable<D>, const D: usize>(PhantomData<F>);
+pub struct PoseidonGate<F: Field + Extendable<D>, const D: usize>(PhantomData<F>);
 
-impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> PoseidonGate<F, D> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -96,7 +95,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for PoseidonGate<F, D> {
+impl<F: Field + Extendable<D> + Poseidon, const D: usize> Gate<F, D> for PoseidonGate<F, D> {
     fn id(&self) -> String {
         format!("{self:?}<WIDTH={SPONGE_WIDTH}>")
     }
@@ -404,12 +403,12 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for PoseidonGate<F
 }
 
 #[derive(Debug)]
-struct PoseidonGenerator<F: RichField + Extendable<D> + Poseidon, const D: usize> {
+struct PoseidonGenerator<F: Field + Extendable<D> + Poseidon, const D: usize> {
     row: usize,
     _phantom: PhantomData<F>,
 }
 
-impl<F: RichField + Extendable<D> + Poseidon, const D: usize> SimpleGenerator<F>
+impl<F: Field + Extendable<D> + Poseidon, const D: usize> SimpleGenerator<F>
     for PoseidonGenerator<F, D>
 {
     fn dependencies(&self) -> Vec<Target> {

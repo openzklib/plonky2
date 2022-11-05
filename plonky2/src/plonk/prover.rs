@@ -10,7 +10,6 @@ use crate::field::polynomial::{PolynomialCoeffs, PolynomialValues};
 use crate::field::types::Field;
 use crate::field::zero_poly_coset::ZeroPolyOnCoset;
 use crate::fri::oracle::PolynomialBatch;
-use crate::hash::hash_types::RichField;
 use crate::iop::challenger::Challenger;
 use crate::iop::generator::generate_partial_witness;
 use crate::iop::witness::{MatrixWitness, PartialWitness, Witness};

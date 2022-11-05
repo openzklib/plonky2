@@ -27,7 +27,7 @@ use crate::gates::gate::{CurrentSlot, Gate, GateInstance, GateRef};
 use crate::gates::noop::NoopGate;
 use crate::gates::public_input::PublicInputGate;
 use crate::gates::selectors::selector_polynomials;
-use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget};
 use crate::hash::merkle_proofs::MerkleProofTarget;
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::ext_target::ExtensionTarget;
