@@ -1,14 +1,14 @@
 use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::gates::random_access::RandomAccessGate;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::util::log2_strict;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Checks that a `Target` matches a vector at a non-deterministic index.
     /// Note: `access_index` is not range-checked.
     pub fn random_access(&mut self, access_index: Target, v: Vec<Target>) -> Target {

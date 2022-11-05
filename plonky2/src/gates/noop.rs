@@ -3,8 +3,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::gates::gate::Gate;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::WitnessGenerator;
 use crate::plonk::circuit_builder::CircuitBuilder;
@@ -13,7 +13,7 @@ use crate::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBaseBa
 /// A gate which does nothing.
 pub struct NoopGate;
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for NoopGate {
+impl<F: Field + Extendable<D>, const D: usize> Gate<F, D> for NoopGate {
     fn id(&self) -> String {
         "NoopGate".into()
     }

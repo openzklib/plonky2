@@ -8,7 +8,7 @@ use crate::field::polynomial::{PolynomialCoeffs, PolynomialValues};
 use crate::field::types::Field;
 use crate::fri::proof::{FriInitialTreeProof, FriProof, FriQueryRound, FriQueryStep};
 use crate::fri::{FriConfig, FriParams};
-use crate::hash::hash_types::{HashOut, RichField};
+use crate::hash::hash_types::HashOut;
 use crate::hash::merkle_tree::MerkleTree;
 use crate::iop::challenger::Challenger;
 use crate::plonk::config::{GenericConfig, Hasher};
@@ -117,6 +117,7 @@ fn fri_proof_of_work<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const
     current_hash: HashOut<F>,
     config: &FriConfig,
 ) -> F {
+    /* TODO:
     (0..=F::NEG_ONE.to_canonical_u64())
         .into_par_iter()
         .find_any(|&i| {
@@ -135,6 +136,8 @@ fn fri_proof_of_work<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const
         })
         .map(F::from_canonical_u64)
         .expect("Proof of work failed. This is highly unlikely!")
+    */
+    todo!()
 }
 
 fn fri_prover_query_rounds<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
@@ -144,6 +147,7 @@ fn fri_prover_query_rounds<F: Field + Extendable<D>, C: GenericConfig<D, F = F>,
     n: usize,
     fri_params: &FriParams,
 ) -> Vec<FriQueryRound<F, C::Hasher, D>> {
+    /* TODO:
     challenger
         .get_n_challenges(fri_params.config.num_query_rounds)
         .into_par_iter()
@@ -152,6 +156,8 @@ fn fri_prover_query_rounds<F: Field + Extendable<D>, C: GenericConfig<D, F = F>,
             fri_prover_query_round::<F, C, D>(initial_merkle_trees, trees, x_index, fri_params)
         })
         .collect()
+    */
+    todo!()
 }
 
 fn fri_prover_query_round<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(

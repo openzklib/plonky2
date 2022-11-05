@@ -5,7 +5,6 @@ use itertools::Itertools;
 
 use crate::field::extension::Extendable;
 use crate::field::types::Field;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::util::ceil_div_usize;
@@ -78,7 +77,7 @@ pub(crate) fn check_partial_products<F: Field>(
 /// Checks the relationship between each pair of partial product accumulators. In particular, this
 /// sequence of accumulators starts with `Z(x)`, then contains each partial product polynomials
 /// `p_i(x)`, and finally `Z(g x)`. See the partial products section of the Plonky2 paper.
-pub(crate) fn check_partial_products_circuit<F: RichField + Extendable<D>, const D: usize>(
+pub(crate) fn check_partial_products_circuit<F: Field + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     numerators: &[ExtensionTarget<D>],
     denominators: &[ExtensionTarget<D>],

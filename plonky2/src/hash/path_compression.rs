@@ -4,12 +4,13 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use num::Integer;
 
+use crate::field::types::Field;
 use crate::hash::hash_types::RichField;
 use crate::hash::merkle_proofs::MerkleProof;
 use crate::plonk::config::Hasher;
 
 /// Compress multiple Merkle proofs on the same tree by removing redundancy in the Merkle paths.
-pub(crate) fn compress_merkle_proofs<F: RichField, H: Hasher<F>>(
+pub(crate) fn compress_merkle_proofs<F: Field, H: Hasher<F>>(
     cap_height: usize,
     indices: &[usize],
     proofs: &[MerkleProof<F, H>],
@@ -53,7 +54,7 @@ pub(crate) fn compress_merkle_proofs<F: RichField, H: Hasher<F>>(
 
 /// Decompress compressed Merkle proofs.
 /// Note: The data and indices must be in the same order as in `compress_merkle_proofs`.
-pub(crate) fn decompress_merkle_proofs<F: RichField, H: Hasher<F>>(
+pub(crate) fn decompress_merkle_proofs<F: Field, H: Hasher<F>>(
     leaves_data: &[Vec<F>],
     leaves_indices: &[usize],
     compressed_proofs: &[MerkleProof<F, H>],

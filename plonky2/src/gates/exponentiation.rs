@@ -11,7 +11,6 @@ use crate::field::types::Field;
 use crate::gates::gate::Gate;
 use crate::gates::packed_util::PackedEvaluableBase;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGenerator};
 use crate::iop::target::Target;
@@ -26,12 +25,12 @@ use crate::plonk::vars::{
 
 /// A gate for raising a value to a power.
 #[derive(Clone, Debug)]
-pub struct ExponentiationGate<F: RichField + Extendable<D>, const D: usize> {
+pub struct ExponentiationGate<F: Field + Extendable<D>, const D: usize> {
     pub num_power_bits: usize,
     pub _phantom: PhantomData<F>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> ExponentiationGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> ExponentiationGate<F, D> {
     pub fn new(num_power_bits: usize) -> Self {
         Self {
             num_power_bits,
@@ -71,7 +70,7 @@ impl<F: RichField + Extendable<D>, const D: usize> ExponentiationGate<F, D> {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for ExponentiationGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> Gate<F, D> for ExponentiationGate<F, D> {
     fn id(&self) -> String {
         format!("{self:?}<D={D}>")
     }
@@ -189,7 +188,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for Exponentiation
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
+impl<F: Field + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
     for ExponentiationGate<F, D>
 {
     fn eval_unfiltered_base_packed<P: PackedField<Scalar = F>>(
@@ -229,12 +228,12 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
 }
 
 #[derive(Debug)]
-struct ExponentiationGenerator<F: RichField + Extendable<D>, const D: usize> {
+struct ExponentiationGenerator<F: Field + Extendable<D>, const D: usize> {
     row: usize,
     gate: ExponentiationGate<F, D>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
+impl<F: Field + Extendable<D>, const D: usize> SimpleGenerator<F>
     for ExponentiationGenerator<F, D>
 {
     fn dependencies(&self) -> Vec<Target> {

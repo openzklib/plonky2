@@ -12,7 +12,6 @@ use crate::field::types::Field;
 use crate::gates::gate::Gate;
 use crate::gates::packed_util::PackedEvaluableBase;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGenerator};
 use crate::iop::target::Target;
@@ -27,7 +26,7 @@ use crate::plonk::vars::{
 
 /// A gate for checking that a particular element of a list matches a given value.
 #[derive(Copy, Clone, Debug)]
-pub struct RandomAccessGate<F: RichField + Extendable<D>, const D: usize> {
+pub struct RandomAccessGate<F: Field + Extendable<D>, const D: usize> {
     /// Number of bits in the index (log2 of the list size).
     pub bits: usize,
 
@@ -40,7 +39,7 @@ pub struct RandomAccessGate<F: RichField + Extendable<D>, const D: usize> {
     _phantom: PhantomData<F>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> RandomAccessGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> RandomAccessGate<F, D> {
     fn new(num_copies: usize, bits: usize, num_extra_constants: usize) -> Self {
         Self {
             bits,
@@ -117,7 +116,7 @@ impl<F: RichField + Extendable<D>, const D: usize> RandomAccessGate<F, D> {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for RandomAccessGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> Gate<F, D> for RandomAccessGate<F, D> {
     fn id(&self) -> String {
         format!("{self:?}<D={D}>")
     }
@@ -278,7 +277,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for RandomAccessGa
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
+impl<F: Field + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
     for RandomAccessGate<F, D>
 {
     fn eval_unfiltered_base_packed<P: PackedField<Scalar = F>>(
@@ -326,15 +325,13 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D>
 }
 
 #[derive(Debug)]
-struct RandomAccessGenerator<F: RichField + Extendable<D>, const D: usize> {
+struct RandomAccessGenerator<F: Field + Extendable<D>, const D: usize> {
     row: usize,
     gate: RandomAccessGate<F, D>,
     copy: usize,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
-    for RandomAccessGenerator<F, D>
-{
+impl<F: Field + Extendable<D>, const D: usize> SimpleGenerator<F> for RandomAccessGenerator<F, D> {
     fn dependencies(&self) -> Vec<Target> {
         let local_target = |column| Target::wire(self.row, column);
 
@@ -346,6 +343,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
     }
 
     fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+        /*
         let local_wire = |column| Wire {
             row: self.row,
             column,
@@ -375,6 +373,8 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
             let bit = F::from_bool(((access_index >> i) & 1) != 0);
             set_local_wire(self.gate.wire_bit(i, copy), bit);
         }
+        */
+        todo!()
     }
 }
 

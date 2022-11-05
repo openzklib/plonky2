@@ -10,7 +10,6 @@ use crate::field::types::{Field, Field64};
 use crate::gates::gate::Gate;
 use crate::gates::packed_util::PackedEvaluableBase;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGenerator};
 use crate::iop::target::Target;
@@ -35,10 +34,13 @@ impl<const B: usize> BaseSumGate<B> {
         Self { num_limbs }
     }
 
-    pub fn new_from_config<F: Field64>(config: &CircuitConfig) -> Self {
+    pub fn new_from_config<F: Field>(config: &CircuitConfig) -> Self {
+        /*
         let num_limbs =
             log_floor(F::ORDER - 1, B as u64).min(config.num_routed_wires - Self::START_LIMBS);
         Self::new(num_limbs)
+        */
+        todo!()
     }
 
     pub const WIRE_SUM: usize = 0;
@@ -50,7 +52,7 @@ impl<const B: usize> BaseSumGate<B> {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize, const B: usize> Gate<F, D> for BaseSumGate<B> {
+impl<F: Field + Extendable<D>, const D: usize, const B: usize> Gate<F, D> for BaseSumGate<B> {
     fn id(&self) -> String {
         format!("{self:?} + Base: {B}")
     }
@@ -137,7 +139,7 @@ impl<F: RichField + Extendable<D>, const D: usize, const B: usize> Gate<F, D> fo
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize, const B: usize> PackedEvaluableBase<F, D>
+impl<F: Field + Extendable<D>, const D: usize, const B: usize> PackedEvaluableBase<F, D>
     for BaseSumGate<B>
 {
     fn eval_unfiltered_base_packed<P: PackedField<Scalar = F>>(
@@ -166,12 +168,13 @@ pub struct BaseSplitGenerator<const B: usize> {
     num_limbs: usize,
 }
 
-impl<F: RichField, const B: usize> SimpleGenerator<F> for BaseSplitGenerator<B> {
+impl<F: Field, const B: usize> SimpleGenerator<F> for BaseSplitGenerator<B> {
     fn dependencies(&self) -> Vec<Target> {
         vec![Target::wire(self.row, BaseSumGate::<B>::WIRE_SUM)]
     }
 
     fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+        /* TODO:
         let sum_value = witness
             .get_target(Target::wire(self.row, BaseSumGate::<B>::WIRE_SUM))
             .to_canonical_u64() as usize;
@@ -194,6 +197,8 @@ impl<F: RichField, const B: usize> SimpleGenerator<F> for BaseSplitGenerator<B> 
         for (b, b_value) in limbs.zip(limbs_value) {
             out_buffer.set_target(b, b_value);
         }
+        */
+        todo!()
     }
 }
 

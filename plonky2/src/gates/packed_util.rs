@@ -4,12 +4,12 @@ use alloc::vec::Vec;
 use crate::field::extension::Extendable;
 use crate::field::packable::Packable;
 use crate::field::packed::PackedField;
+use crate::field::types::Field;
 use crate::gates::gate::Gate;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::plonk::vars::{EvaluationVarsBaseBatch, EvaluationVarsBasePacked};
 
-pub trait PackedEvaluableBase<F: RichField + Extendable<D>, const D: usize>: Gate<F, D> {
+pub trait PackedEvaluableBase<F: Field + Extendable<D>, const D: usize>: Gate<F, D> {
     fn eval_unfiltered_base_packed<P: PackedField<Scalar = F>>(
         &self,
         vars_base: EvaluationVarsBasePacked<P>,

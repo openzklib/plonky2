@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::types::Field;
-use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
+use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget};
 use crate::hash::hashing::{PlonkyPermutation, SPONGE_RATE, SPONGE_WIDTH};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::ext_target::ExtensionTarget;
@@ -172,9 +172,7 @@ pub struct RecursiveChallenger<F: Field + Extendable<D>, H: AlgebraicHasher<F>, 
     __: PhantomData<(F, H)>,
 }
 
-impl<F: RichField + Extendable<D>, H: AlgebraicHasher<F>, const D: usize>
-    RecursiveChallenger<F, H, D>
-{
+impl<F: Field + Extendable<D>, H: AlgebraicHasher<F>, const D: usize> RecursiveChallenger<F, H, D> {
     pub fn new(builder: &mut CircuitBuilder<F, D>) -> Self {
         let zero = builder.zero();
         Self {

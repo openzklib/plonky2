@@ -9,7 +9,6 @@ use crate::field::types::Field;
 use crate::gates::arithmetic_extension::ArithmeticExtensionGate;
 use crate::gates::reducing::ReducingGate;
 use crate::gates::reducing_extension::ReducingExtensionGate;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
@@ -128,7 +127,7 @@ impl<const D: usize> ReducingFactorTarget<D> {
         builder: &mut CircuitBuilder<F, D>,
     ) -> ExtensionTarget<D>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let l = terms.len();
 
@@ -183,7 +182,7 @@ impl<const D: usize> ReducingFactorTarget<D> {
         builder: &mut CircuitBuilder<F, D>,
     ) -> ExtensionTarget<D>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let l = terms.len();
 
@@ -236,7 +235,7 @@ impl<const D: usize> ReducingFactorTarget<D> {
         builder: &mut CircuitBuilder<F, D>,
     ) -> ExtensionTarget<D>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         self.count += terms.len() as u64;
         terms
@@ -253,7 +252,7 @@ impl<const D: usize> ReducingFactorTarget<D> {
         builder: &mut CircuitBuilder<F, D>,
     ) -> ExtensionTarget<D>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let zero_ext = builder.zero_extension();
         let exp = if x == zero_ext {

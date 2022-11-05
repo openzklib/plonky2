@@ -6,7 +6,6 @@ use core::ops::Range;
 
 use crate::field::extension::Extendable;
 use crate::field::types::Field;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 
 /// Describes an instance of a FRI-based batch opening.

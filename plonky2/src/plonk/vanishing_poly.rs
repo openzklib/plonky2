@@ -23,7 +23,7 @@ use crate::with_context;
 /// linear combination of gate constraints, plus some other terms relating to the permutation
 /// argument. All such terms should vanish on `H`.
 pub(crate) fn eval_vanishing_poly<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -98,7 +98,7 @@ pub(crate) fn eval_vanishing_poly<
 
 /// Like `eval_vanishing_poly`, but specialized for base field points. Batched.
 pub(crate) fn eval_vanishing_poly_base_batch<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -115,6 +115,7 @@ pub(crate) fn eval_vanishing_poly_base_batch<
     alphas: &[F],
     z_h_on_coset: &ZeroPolyOnCoset<F>,
 ) -> Vec<Vec<F>> {
+    /*
     let n = indices_batch.len();
     assert_eq!(xs_batch.len(), n);
     assert_eq!(vars_batch.len(), n);
@@ -201,6 +202,8 @@ pub(crate) fn eval_vanishing_poly_base_batch<
         vanishing_partial_products_terms.clear();
     }
     res_batch
+    */
+    todo!()
 }
 
 /// Evaluates all gate constraints.
@@ -209,7 +212,7 @@ pub(crate) fn eval_vanishing_poly_base_batch<
 /// strictly necessary, but it helps performance by ensuring that we allocate a vector with exactly
 /// the capacity that we need.
 pub fn evaluate_gate_constraints<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -243,7 +246,7 @@ pub fn evaluate_gate_constraints<
 /// corresponding to `vars_batch[i]` are found in `result[i], result[vars_batch.len() + i],
 /// result[2 * vars_batch.len() + i], ...`.
 pub fn evaluate_gate_constraints_base_batch<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -274,7 +277,7 @@ pub fn evaluate_gate_constraints_base_batch<
 }
 
 pub fn evaluate_gate_constraints_circuit<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -309,7 +312,7 @@ pub fn evaluate_gate_constraints_circuit<
 /// Assumes `x != 1`; if `x` could be 1 then this is unsound. This is fine if `x` is a random
 /// variable drawn from a sufficiently large domain.
 pub(crate) fn eval_vanishing_poly_circuit<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(

@@ -4,6 +4,7 @@ use alloc::{format, vec};
 use itertools::Itertools;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::fri::proof::{
     FriChallengesTarget, FriInitialTreeProofTarget, FriProofTarget, FriQueryRoundTarget,
     FriQueryStepTarget,
@@ -15,7 +16,7 @@ use crate::gates::high_degree_interpolation::HighDegreeInterpolationGate;
 use crate::gates::interpolation::InterpolationGate;
 use crate::gates::low_degree_interpolation::LowDegreeInterpolationGate;
 use crate::gates::random_access::RandomAccessGate;
-use crate::hash::hash_types::{MerkleCapTarget, RichField};
+use crate::hash::hash_types::MerkleCapTarget;
 use crate::iop::ext_target::{flatten_target, ExtensionTarget};
 use crate::iop::target::{BoolTarget, Target};
 use crate::plonk::circuit_builder::CircuitBuilder;
@@ -24,7 +25,7 @@ use crate::util::reducing::ReducingFactorTarget;
 use crate::util::{log2_strict, reverse_index_bits_in_place};
 use crate::with_context;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Computes P'(x^arity) from {P(x*g^i)}_(i=0..arity), where g is a `arity`-th root of unity
     /// and P' is the FRI reduced polynomial.
     fn compute_evaluation<C: GenericConfig<D, F = F>>(
@@ -394,11 +395,14 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     ///
     /// Here we compare the probabilities as a sanity check, to verify the claim above.
     fn assert_noncanonical_indices_ok(config: &FriConfig) {
-        let num_ambiguous_elems = u64::MAX - F::ORDER + 1;
-        let query_error = config.rate();
-        let p_ambiguous = (num_ambiguous_elems as f64) / (F::ORDER as f64);
-        assert!(p_ambiguous < query_error * 1e-5,
-                "A non-negligible portion of field elements are in the range that permits non-canonical encodings. Need to do more analysis or enforce canonical encodings.");
+        /* TODO:
+            let num_ambiguous_elems = u64::MAX - F::ORDER + 1;
+            let query_error = config.rate();
+            let p_ambiguous = (num_ambiguous_elems as f64) / (F::ORDER as f64);
+            assert!(p_ambiguous < query_error * 1e-5,
+                    "A non-negligible portion of field elements are in the range that permits non-canonical encodings. Need to do more analysis or enforce canonical encodings.");
+        */
+        todo!()
     }
 
     pub fn add_virtual_fri_proof(
@@ -485,7 +489,7 @@ struct PrecomputedReducedOpeningsTarget<const D: usize> {
 }
 
 impl<const D: usize> PrecomputedReducedOpeningsTarget<D> {
-    fn from_os_and_alpha<F: RichField + Extendable<D>>(
+    fn from_os_and_alpha<F: Field + Extendable<D>>(
         openings: &FriOpeningsTarget<D>,
         alpha: ExtensionTarget<D>,
         builder: &mut CircuitBuilder<F, D>,

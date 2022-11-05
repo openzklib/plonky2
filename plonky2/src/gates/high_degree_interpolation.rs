@@ -9,11 +9,11 @@ use crate::field::extension::algebra::PolynomialCoeffsAlgebra;
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::interpolation::interpolant;
 use crate::field::polynomial::PolynomialCoeffs;
+use crate::field::types::Field;
 use crate::gadgets::polynomial::PolynomialCoeffsExtAlgebraTarget;
 use crate::gates::gate::Gate;
 use crate::gates::interpolation::InterpolationGate;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGenerator};
 use crate::iop::target::Target;
@@ -27,12 +27,12 @@ use crate::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBase};
 /// The higher degree is a tradeoff for less gates (`eval_unfiltered_recursively` for
 /// this version uses less gates than `LowDegreeInterpolationGate`).
 #[derive(Copy, Clone, Debug)]
-pub struct HighDegreeInterpolationGate<F: RichField + Extendable<D>, const D: usize> {
+pub struct HighDegreeInterpolationGate<F: Field + Extendable<D>, const D: usize> {
     pub subgroup_bits: usize,
     _phantom: PhantomData<F>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> InterpolationGate<F, D>
+impl<F: Field + Extendable<D>, const D: usize> InterpolationGate<F, D>
     for HighDegreeInterpolationGate<F, D>
 {
     fn new(subgroup_bits: usize) -> Self {
@@ -47,7 +47,7 @@ impl<F: RichField + Extendable<D>, const D: usize> InterpolationGate<F, D>
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> HighDegreeInterpolationGate<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> HighDegreeInterpolationGate<F, D> {
     /// End of wire indices, exclusive.
     fn end(&self) -> usize {
         self.start_coeffs() + self.num_points() * D
@@ -86,9 +86,7 @@ impl<F: RichField + Extendable<D>, const D: usize> HighDegreeInterpolationGate<F
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D>
-    for HighDegreeInterpolationGate<F, D>
-{
+impl<F: Field + Extendable<D>, const D: usize> Gate<F, D> for HighDegreeInterpolationGate<F, D> {
     fn id(&self) -> String {
         format!("{self:?}<D={D}>")
     }
@@ -205,15 +203,13 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D>
 }
 
 #[derive(Debug)]
-struct InterpolationGenerator<F: RichField + Extendable<D>, const D: usize> {
+struct InterpolationGenerator<F: Field + Extendable<D>, const D: usize> {
     row: usize,
     gate: HighDegreeInterpolationGate<F, D>,
     _phantom: PhantomData<F>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
-    for InterpolationGenerator<F, D>
-{
+impl<F: Field + Extendable<D>, const D: usize> SimpleGenerator<F> for InterpolationGenerator<F, D> {
     fn dependencies(&self) -> Vec<Target> {
         let local_target = |column| {
             Target::Wire(Wire {

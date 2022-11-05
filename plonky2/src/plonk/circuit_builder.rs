@@ -691,6 +691,7 @@ impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
 
     /// Builds a "full circuit", with both prover and verifier data.
     pub fn build<C: GenericConfig<D, F = F>>(mut self) -> CircuitData<F, C, D> {
+        /* TODO:
         let mut timing = TimingTree::new("preprocess", Level::Trace);
         #[cfg(feature = "std")]
         let start = Instant::now();
@@ -887,6 +888,8 @@ impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
             verifier_only,
             common,
         }
+        */
+        todo!()
     }
 
     /// Builds a "prover circuit", with data needed to generate proofs but not verify them.

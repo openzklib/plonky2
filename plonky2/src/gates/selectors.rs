@@ -4,8 +4,8 @@ use core::ops::Range;
 
 use crate::field::extension::Extendable;
 use crate::field::polynomial::PolynomialValues;
+use crate::field::types::Field;
 use crate::gates::gate::{GateInstance, GateRef};
-use crate::hash::hash_types::RichField;
 
 /// Placeholder value to indicate that a gate doesn't use a selector polynomial.
 pub(crate) const UNUSED_SELECTOR: usize = u32::MAX as usize;
@@ -34,7 +34,7 @@ impl SelectorsInfo {
 ///         k
 ///     else
 ///         UNUSED_SELECTOR
-pub(crate) fn selector_polynomials<F: RichField + Extendable<D>, const D: usize>(
+pub(crate) fn selector_polynomials<F: Field + Extendable<D>, const D: usize>(
     gates: &[GateRef<F, D>],
     instances: &[GateInstance<F, D>],
     max_degree: usize,

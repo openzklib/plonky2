@@ -10,7 +10,7 @@ use crate::field::polynomial::PolynomialCoeffs;
 use crate::field::types::Field;
 use crate::fri::FriParams;
 use crate::gadgets::polynomial::PolynomialCoeffsExtTarget;
-use crate::hash::hash_types::{MerkleCapTarget, RichField};
+use crate::hash::hash_types::MerkleCapTarget;
 use crate::hash::merkle_proofs::{MerkleProof, MerkleProofTarget};
 use crate::hash::merkle_tree::MerkleCap;
 use crate::hash::path_compression::{compress_merkle_proofs, decompress_merkle_proofs};

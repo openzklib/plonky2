@@ -25,7 +25,7 @@ use crate::util::partial_products::{partial_products_and_z_gx, quotient_chunk_pr
 use crate::util::timing::TimingTree;
 use crate::util::{ceil_div_usize, log2_ceil, transpose};
 
-pub fn prove<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+pub fn prove<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     prover_data: &ProverOnlyCircuitData<F, C, D>,
     common_data: &CommonCircuitData<F, D>,
     inputs: PartialWitness<F>,
@@ -221,7 +221,7 @@ pub fn prove<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: 
 
 /// Compute the partial products used in the `Z` polynomials.
 fn all_wires_permutation_partial_products<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -248,7 +248,7 @@ fn all_wires_permutation_partial_products<
 /// Returns the polynomials interpolating `partial_products(f / g)`
 /// where `f, g` are the products in the definition of `Z`: `Z(g^i) = f / g`.
 fn wires_permutation_partial_products_and_zs<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -310,7 +310,7 @@ const BATCH_SIZE: usize = 32;
 
 fn compute_quotient_polys<
     'a,
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(

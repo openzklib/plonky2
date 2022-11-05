@@ -1,11 +1,11 @@
 use crate::field::extension::Extendable;
-use crate::hash::hash_types::RichField;
+use crate::field::types::Field;
 use crate::hash::hashing::SPONGE_WIDTH;
 use crate::iop::target::{BoolTarget, Target};
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::config::AlgebraicHasher;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     pub fn permute<H: AlgebraicHasher<F>>(
         &mut self,
         inputs: [Target; SPONGE_WIDTH],

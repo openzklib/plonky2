@@ -2,13 +2,13 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
-use crate::hash::hash_types::RichField;
+use crate::field::types::Field;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator};
 use crate::iop::target::{BoolTarget, Target};
 use crate::iop::witness::{PartitionWitness, Witness};
 use crate::plonk::circuit_builder::CircuitBuilder;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Checks that `x < 2^n_log` using a `BaseSumGate`.
     pub fn range_check(&mut self, x: Target, n_log: usize) {
         self.split_le(x, n_log);
@@ -59,17 +59,19 @@ struct LowHighGenerator {
     high: Target,
 }
 
-impl<F: RichField> SimpleGenerator<F> for LowHighGenerator {
+impl<F: Field> SimpleGenerator<F> for LowHighGenerator {
     fn dependencies(&self) -> Vec<Target> {
         vec![self.integer]
     }
 
     fn run_once(&self, witness: &PartitionWitness<F>, out_buffer: &mut GeneratedValues<F>) {
+        /*
         let integer_value = witness.get_target(self.integer).to_canonical_u64();
         let low = integer_value & ((1 << self.n_log) - 1);
         let high = integer_value >> self.n_log;
-
         out_buffer.set_target(self.low, F::from_canonical_u64(low));
         out_buffer.set_target(self.high, F::from_canonical_u64(high));
+        */
+        todo!()
     }
 }

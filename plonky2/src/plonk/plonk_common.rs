@@ -70,7 +70,7 @@ pub(crate) fn eval_l_0<F: Field>(n: usize, x: F) -> F {
 /// the order-`n` subgroup.
 ///
 /// Assumes `x != 1`; if `x` could be 1 then this is unsound.
-pub(crate) fn eval_l_0_circuit<F: RichField + Extendable<D>, const D: usize>(
+pub(crate) fn eval_l_0_circuit<F: Field + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     n: usize,
     x: ExtensionTarget<D>,
@@ -127,7 +127,7 @@ where
     sum
 }
 
-pub fn reduce_with_powers_circuit<F: RichField + Extendable<D>, const D: usize>(
+pub fn reduce_with_powers_circuit<F: Field + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     terms: &[Target],
     alpha: Target,
@@ -144,7 +144,7 @@ pub fn reduce_with_powers_circuit<F: RichField + Extendable<D>, const D: usize>(
     }
 }
 
-pub fn reduce_with_powers_ext_circuit<F: RichField + Extendable<D>, const D: usize>(
+pub fn reduce_with_powers_ext_circuit<F: Field + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     terms: &[ExtensionTarget<D>],
     alpha: Target,

@@ -17,7 +17,7 @@ use crate::plonk::config::GenericConfig;
 /// given set of generators.
 pub(crate) fn generate_partial_witness<
     'a,
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -146,7 +146,7 @@ impl<F: Field> GeneratedValues<F> {
         value: F::Extension,
     ) -> Self
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let mut witness = Self::with_capacity(D);
         witness.set_extension_target(et, value);
@@ -173,7 +173,7 @@ impl<F: Field> GeneratedValues<F> {
         et: ExtensionTarget<D>,
         value: F::Extension,
     ) where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let limbs = value.to_basefield_array();
         (0..D).for_each(|i| {
@@ -197,7 +197,7 @@ impl<F: Field> GeneratedValues<F> {
 
     pub fn set_ext_wires<W, const D: usize>(&mut self, wires: W, value: F::Extension)
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         W: IntoIterator<Item = Wire>,
     {
         self.set_wires(wires, &value.to_basefield_array());

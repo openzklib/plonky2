@@ -9,7 +9,6 @@ use crate::fri::proof::{FriChallenges, FriInitialTreeProof, FriProof, FriQueryRo
 use crate::fri::structure::{FriBatchInfo, FriInstanceInfo, FriOpenings};
 use crate::fri::validate_shape::validate_fri_proof_shape;
 use crate::fri::{FriConfig, FriParams};
-use crate::hash::hash_types::RichField;
 use crate::hash::merkle_proofs::verify_merkle_proof_to_cap;
 use crate::hash::merkle_tree::MerkleCap;
 use crate::plonk::config::{GenericConfig, Hasher};
@@ -45,24 +44,22 @@ pub(crate) fn compute_evaluation<F: Field + Extendable<D>, const D: usize>(
     interpolate(&points, beta, &barycentric_weights)
 }
 
-pub(crate) fn fri_verify_proof_of_work<F: RichField + Extendable<D>, const D: usize>(
+pub(crate) fn fri_verify_proof_of_work<F: Field + Extendable<D>, const D: usize>(
     fri_pow_response: F,
     config: &FriConfig,
 ) -> Result<()> {
+    /*
     ensure!(
         fri_pow_response.to_canonical_u64().leading_zeros()
             >= config.proof_of_work_bits + (64 - F::order().bits()) as u32,
         "Invalid proof of work witness."
     );
-
     Ok(())
+    */
+    todo!()
 }
 
-pub fn verify_fri_proof<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub fn verify_fri_proof<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     instance: &FriInstanceInfo<F, D>,
     openings: &FriOpenings<F, D>,
     challenges: &FriChallenges<F, D>,
@@ -107,7 +104,7 @@ pub fn verify_fri_proof<
     Ok(())
 }
 
-fn fri_verify_initial_proof<F: RichField, H: Hasher<F>>(
+fn fri_verify_initial_proof<F: Field, H: Hasher<F>>(
     x_index: usize,
     proof: &FriInitialTreeProof<F, H>,
     initial_merkle_caps: &[MerkleCap<F, H>],
@@ -120,7 +117,7 @@ fn fri_verify_initial_proof<F: RichField, H: Hasher<F>>(
 }
 
 pub(crate) fn fri_combine_initial<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -163,7 +160,7 @@ pub(crate) fn fri_combine_initial<
 }
 
 fn fri_verifier_query_round<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 >(
@@ -244,11 +241,11 @@ fn fri_verifier_query_round<
 /// For each opening point, holds the reduced (by `alpha`) evaluations of each polynomial that's
 /// opened at that point.
 #[derive(Clone, Debug)]
-pub(crate) struct PrecomputedReducedOpenings<F: RichField + Extendable<D>, const D: usize> {
+pub(crate) struct PrecomputedReducedOpenings<F: Field + Extendable<D>, const D: usize> {
     pub reduced_openings_at_point: Vec<F::Extension>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> PrecomputedReducedOpenings<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> PrecomputedReducedOpenings<F, D> {
     pub(crate) fn from_os_and_alpha(openings: &FriOpenings<F, D>, alpha: F::Extension) -> Self {
         let reduced_openings_at_point = openings
             .batches

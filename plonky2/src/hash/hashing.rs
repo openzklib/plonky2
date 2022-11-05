@@ -3,6 +3,7 @@
 use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::hash::hash_types::{HashOut, HashOutTarget, RichField};
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
@@ -12,7 +13,7 @@ pub(crate) const SPONGE_RATE: usize = 8;
 pub(crate) const SPONGE_CAPACITY: usize = 4;
 pub const SPONGE_WIDTH: usize = SPONGE_RATE + SPONGE_CAPACITY;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     pub fn hash_or_noop<H: AlgebraicHasher<F>>(&mut self, inputs: Vec<Target>) -> HashOutTarget {
         let zero = self.zero();
         if inputs.len() <= 4 {
@@ -62,7 +63,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
 }
 
 /// A one-way compression function which takes two ~256 bit inputs and returns a ~256 bit output.
-pub fn compress<F: RichField, P: PlonkyPermutation<F>>(x: HashOut<F>, y: HashOut<F>) -> HashOut<F> {
+pub fn compress<F: Field, P: PlonkyPermutation<F>>(x: HashOut<F>, y: HashOut<F>) -> HashOut<F> {
     let mut perm_inputs = [F::ZERO; SPONGE_WIDTH];
     perm_inputs[..4].copy_from_slice(&x.elements);
     perm_inputs[4..8].copy_from_slice(&y.elements);
@@ -78,7 +79,7 @@ pub trait PlonkyPermutation<F> {
 
 /// Hash a message without any padding step. Note that this can enable length-extension attacks.
 /// However, it is still collision-resistant in cases where the input has a fixed length.
-pub fn hash_n_to_m_no_pad<F: RichField, P: PlonkyPermutation<F>>(
+pub fn hash_n_to_m_no_pad<F: Field, P: PlonkyPermutation<F>>(
     inputs: &[F],
     num_outputs: usize,
 ) -> Vec<F> {
@@ -103,6 +104,6 @@ pub fn hash_n_to_m_no_pad<F: RichField, P: PlonkyPermutation<F>>(
     }
 }
 
-pub fn hash_n_to_hash_no_pad<F: RichField, P: PlonkyPermutation<F>>(inputs: &[F]) -> HashOut<F> {
+pub fn hash_n_to_hash_no_pad<F: Field, P: PlonkyPermutation<F>>(inputs: &[F]) -> HashOut<F> {
     HashOut::from_vec(hash_n_to_m_no_pad::<F, P>(inputs, 4))
 }

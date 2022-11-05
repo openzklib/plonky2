@@ -5,10 +5,10 @@ use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
 use crate::field::packed::PackedField;
+use crate::field::types::Field;
 use crate::gates::gate::Gate;
 use crate::gates::packed_util::PackedEvaluableBase;
 use crate::gates::util::StridedConstraintConsumer;
-use crate::hash::hash_types::RichField;
 use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::generator::{GeneratedValues, SimpleGenerator, WitnessGenerator};
 use crate::iop::target::Target;
@@ -55,7 +55,7 @@ impl ArithmeticGate {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for ArithmeticGate {
+impl<F: Field + Extendable<D>, const D: usize> Gate<F, D> for ArithmeticGate {
     fn id(&self) -> String {
         format!("{self:?}")
     }
@@ -151,7 +151,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for ArithmeticGate
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for ArithmeticGate {
+impl<F: Field + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for ArithmeticGate {
     fn eval_unfiltered_base_packed<P: PackedField<Scalar = F>>(
         &self,
         vars: EvaluationVarsBasePacked<P>,
@@ -173,14 +173,14 @@ impl<F: RichField + Extendable<D>, const D: usize> PackedEvaluableBase<F, D> for
 }
 
 #[derive(Clone, Debug)]
-struct ArithmeticBaseGenerator<F: RichField + Extendable<D>, const D: usize> {
+struct ArithmeticBaseGenerator<F: Field + Extendable<D>, const D: usize> {
     row: usize,
     const_0: F,
     const_1: F,
     i: usize,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
+impl<F: Field + Extendable<D>, const D: usize> SimpleGenerator<F>
     for ArithmeticBaseGenerator<F, D>
 {
     fn dependencies(&self) -> Vec<Target> {

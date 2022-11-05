@@ -551,7 +551,7 @@ pub trait Write {
     #[inline]
     fn write_hash<F, H>(&mut self, h: H::Hash) -> Result<(), Self::Error>
     where
-        F: Field
+        F: Field,
         H: Hasher<F>,
     {
         self.write_all(&h.to_bytes())

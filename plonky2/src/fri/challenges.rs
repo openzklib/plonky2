@@ -2,21 +2,22 @@ use alloc::vec::Vec;
 
 use crate::field::extension::Extendable;
 use crate::field::polynomial::PolynomialCoeffs;
+use crate::field::types::Field;
 use crate::fri::proof::{FriChallenges, FriChallengesTarget};
 use crate::fri::structure::{FriOpenings, FriOpeningsTarget};
 use crate::fri::FriConfig;
 use crate::gadgets::polynomial::PolynomialCoeffsExtTarget;
-use crate::hash::hash_types::{MerkleCapTarget, RichField};
+use crate::hash::hash_types::MerkleCapTarget;
 use crate::hash::merkle_tree::MerkleCap;
 use crate::iop::challenger::{Challenger, RecursiveChallenger};
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::config::{AlgebraicHasher, GenericConfig, Hasher};
 
-impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
+impl<F: Field, H: Hasher<F>> Challenger<F, H> {
     pub fn observe_openings<const D: usize>(&mut self, openings: &FriOpenings<F, D>)
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         for v in &openings.batches {
             self.observe_extension_elements(&v.values);
@@ -32,8 +33,9 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
         config: &FriConfig,
     ) -> FriChallenges<F, D>
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
+        /*
         let num_fri_queries = config.num_query_rounds;
         let lde_size = 1 << (degree_bits + config.rate_bits);
         // Scaling factor to combine polynomials.
@@ -71,12 +73,12 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
             fri_pow_response,
             fri_query_indices,
         }
+        */
+        todo!()
     }
 }
 
-impl<F: RichField + Extendable<D>, H: AlgebraicHasher<F>, const D: usize>
-    RecursiveChallenger<F, H, D>
-{
+impl<F: Field + Extendable<D>, H: AlgebraicHasher<F>, const D: usize> RecursiveChallenger<F, H, D> {
     pub fn observe_openings(&mut self, openings: &FriOpeningsTarget<D>) {
         for v in &openings.batches {
             self.observe_extension_elements(&v.values);
