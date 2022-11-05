@@ -5,6 +5,7 @@ use maybe_rayon::*;
 
 use crate::field::extension::{flatten, unflatten, Extendable};
 use crate::field::polynomial::{PolynomialCoeffs, PolynomialValues};
+use crate::field::types::Field;
 use crate::fri::proof::{FriInitialTreeProof, FriProof, FriQueryRound, FriQueryStep};
 use crate::fri::{FriConfig, FriParams};
 use crate::hash::hash_types::{HashOut, RichField};
@@ -17,7 +18,7 @@ use crate::util::reverse_index_bits_in_place;
 use crate::util::timing::TimingTree;
 
 /// Builds a FRI proof.
-pub fn fri_proof<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+pub fn fri_proof<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     initial_merkle_trees: &[&MerkleTree<F, C::Hasher>],
     // Coefficients of the polynomial on which the LDT is performed. Only the first `1/rate` coefficients are non-zero.
     lde_polynomial_coeffs: PolynomialCoeffs<F::Extension>,
@@ -67,7 +68,7 @@ type FriCommitedTrees<F, C, const D: usize> = (
     PolynomialCoeffs<<F as Extendable<D>>::Extension>,
 );
 
-fn fri_committed_trees<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+fn fri_committed_trees<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     mut coeffs: PolynomialCoeffs<F::Extension>,
     mut values: PolynomialValues<F::Extension>,
     challenger: &mut Challenger<F, C::Hasher>,
@@ -112,7 +113,7 @@ fn fri_committed_trees<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>,
     (trees, coeffs)
 }
 
-fn fri_proof_of_work<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+fn fri_proof_of_work<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     current_hash: HashOut<F>,
     config: &FriConfig,
 ) -> F {
@@ -136,11 +137,7 @@ fn fri_proof_of_work<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, c
         .expect("Proof of work failed. This is highly unlikely!")
 }
 
-fn fri_prover_query_rounds<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+fn fri_prover_query_rounds<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     initial_merkle_trees: &[&MerkleTree<F, C::Hasher>],
     trees: &[MerkleTree<F, C::Hasher>],
     challenger: &mut Challenger<F, C::Hasher>,
@@ -157,11 +154,7 @@ fn fri_prover_query_rounds<
         .collect()
 }
 
-fn fri_prover_query_round<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+fn fri_prover_query_round<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     initial_merkle_trees: &[&MerkleTree<F, C::Hasher>],
     trees: &[MerkleTree<F, C::Hasher>],
     mut x_index: usize,

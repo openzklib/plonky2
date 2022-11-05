@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::field::extension::{flatten, unflatten, Extendable};
 use crate::field::polynomial::PolynomialCoeffs;
+use crate::field::types::Field;
 use crate::fri::FriParams;
 use crate::gadgets::polynomial::PolynomialCoeffsExtTarget;
 use crate::hash::hash_types::{MerkleCapTarget, RichField};
@@ -22,7 +23,7 @@ use crate::plonk::proof::{FriInferredElements, ProofChallenges};
 /// Evaluations and Merkle proof produced by the prover in a FRI query step.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct FriQueryStep<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> {
+pub struct FriQueryStep<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> {
     pub evals: Vec<F::Extension>,
     pub merkle_proof: MerkleProof<F, H>,
 }
@@ -37,11 +38,11 @@ pub struct FriQueryStepTarget<const D: usize> {
 /// before they are combined into a composition polynomial.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct FriInitialTreeProof<F: RichField, H: Hasher<F>> {
+pub struct FriInitialTreeProof<F: Field, H: Hasher<F>> {
     pub evals_proofs: Vec<(Vec<F>, MerkleProof<F, H>)>,
 }
 
-impl<F: RichField, H: Hasher<F>> FriInitialTreeProof<F, H> {
+impl<F: Field, H: Hasher<F>> FriInitialTreeProof<F, H> {
     pub(crate) fn unsalted_eval(&self, oracle_index: usize, poly_index: usize, salted: bool) -> F {
         self.unsalted_evals(oracle_index, salted)[poly_index]
     }
@@ -76,7 +77,7 @@ impl FriInitialTreeProofTarget {
 /// Proof for a FRI query round.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct FriQueryRound<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> {
+pub struct FriQueryRound<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> {
     pub initial_trees_proof: FriInitialTreeProof<F, H>,
     pub steps: Vec<FriQueryStep<F, H, D>>,
 }
@@ -90,7 +91,7 @@ pub struct FriQueryRoundTarget<const D: usize> {
 /// Compressed proof of the FRI query rounds.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct CompressedFriQueryRounds<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> {
+pub struct CompressedFriQueryRounds<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> {
     /// Query indices.
     pub indices: Vec<usize>,
     /// Map from initial indices `i` to the `FriInitialProof` for the `i`th leaf.
@@ -101,7 +102,7 @@ pub struct CompressedFriQueryRounds<F: RichField + Extendable<D>, H: Hasher<F>, 
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct FriProof<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> {
+pub struct FriProof<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> {
     /// A Merkle cap for each reduced polynomial in the commit phase.
     pub commit_phase_merkle_caps: Vec<MerkleCap<F, H>>,
     /// Query rounds proofs
@@ -122,7 +123,7 @@ pub struct FriProofTarget<const D: usize> {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct CompressedFriProof<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> {
+pub struct CompressedFriProof<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> {
     /// A Merkle cap for each reduced polynomial in the commit phase.
     pub commit_phase_merkle_caps: Vec<MerkleCap<F, H>>,
     /// Compressed query rounds proof.
@@ -133,7 +134,7 @@ pub struct CompressedFriProof<F: RichField + Extendable<D>, H: Hasher<F>, const 
     pub pow_witness: F,
 }
 
-impl<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> FriProof<F, H, D> {
+impl<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> FriProof<F, H, D> {
     /// Compress all the Merkle paths in the FRI proof and remove duplicate indices.
     pub fn compress<C: GenericConfig<D, F = F, Hasher = H>>(
         self,
@@ -239,7 +240,7 @@ impl<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> FriProof<F, H, 
     }
 }
 
-impl<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> CompressedFriProof<F, H, D> {
+impl<F: Field + Extendable<D>, H: Hasher<F>, const D: usize> CompressedFriProof<F, H, D> {
     /// Decompress all the Merkle paths in the FRI proof and reinsert duplicate indices.
     pub(crate) fn decompress<C: GenericConfig<D, F = F, Hasher = H>>(
         self,
@@ -364,7 +365,7 @@ impl<F: RichField + Extendable<D>, H: Hasher<F>, const D: usize> CompressedFriPr
     }
 }
 
-pub struct FriChallenges<F: RichField + Extendable<D>, const D: usize> {
+pub struct FriChallenges<F: Field + Extendable<D>, const D: usize> {
     // Scaling factor to combine polynomials.
     pub fri_alpha: F::Extension,
 

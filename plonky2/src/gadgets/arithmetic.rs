@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use crate::field::extension::Extendable;
-use crate::field::types::Field64;
+use crate::field::types::{Field, Field64};
 use crate::gates::arithmetic_base::ArithmeticGate;
 use crate::gates::exponentiation::ExponentiationGate;
 use crate::hash::hash_types::RichField;
@@ -12,7 +12,7 @@ use crate::iop::target::{BoolTarget, Target};
 use crate::iop::witness::{PartitionWitness, Witness};
 use crate::plonk::circuit_builder::CircuitBuilder;
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     /// Computes `-x`.
     pub fn neg(&mut self, x: Target) -> Target {
         let neg_one = self.neg_one();
@@ -372,7 +372,7 @@ struct EqualityGenerator {
     inv: Target,
 }
 
-impl<F: RichField> SimpleGenerator<F> for EqualityGenerator {
+impl<F: Field> SimpleGenerator<F> for EqualityGenerator {
     fn dependencies(&self) -> Vec<Target> {
         vec![self.x, self.y]
     }
@@ -390,7 +390,7 @@ impl<F: RichField> SimpleGenerator<F> for EqualityGenerator {
 
 /// Represents a base arithmetic operation in the circuit. Used to memoize results.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct BaseArithmeticOperation<F: Field64> {
+pub(crate) struct BaseArithmeticOperation<F: Field> {
     const_0: F,
     const_1: F,
     multiplicand_0: Target,

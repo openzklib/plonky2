@@ -8,6 +8,7 @@ use serde::Serialize;
 use crate::field::extension::quadratic::QuadraticExtension;
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::goldilocks_field::GoldilocksField;
+use crate::field::types::Field;
 use crate::hash::hash_types::{HashOut, RichField};
 use crate::hash::hashing::{PlonkyPermutation, SPONGE_WIDTH};
 use crate::hash::keccak::KeccakHash;
@@ -15,7 +16,7 @@ use crate::hash::poseidon::PoseidonHash;
 use crate::iop::target::{BoolTarget, Target};
 use crate::plonk::circuit_builder::CircuitBuilder;
 
-pub trait GenericHashOut<F: RichField>:
+pub trait GenericHashOut<F>:
     Copy + Clone + Debug + Eq + PartialEq + Send + Sync + Serialize + DeserializeOwned
 {
     fn to_bytes(&self) -> Vec<u8>;
@@ -25,7 +26,10 @@ pub trait GenericHashOut<F: RichField>:
 }
 
 /// Trait for hash functions.
-pub trait Hasher<F: RichField>: Sized + Clone + Debug + Eq + PartialEq {
+pub trait Hasher<F>: Sized + Clone + Debug + Eq + PartialEq
+where
+    F: Field,
+{
     /// Size of `Hash` in bytes.
     const HASH_SIZE: usize;
 
@@ -53,6 +57,7 @@ pub trait Hasher<F: RichField>: Sized + Clone + Debug + Eq + PartialEq {
     /// Hash the slice if necessary to reduce its length to ~256 bits. If it already fits, this is a
     /// no-op.
     fn hash_or_noop(inputs: &[F]) -> Self::Hash {
+        /*
         if inputs.len() <= 4 {
             let mut inputs_bytes = vec![0u8; Self::HASH_SIZE];
             for i in 0..inputs.len() {
@@ -63,13 +68,18 @@ pub trait Hasher<F: RichField>: Sized + Clone + Debug + Eq + PartialEq {
         } else {
             Self::hash_no_pad(inputs)
         }
+        */
+        todo!()
     }
 
     fn two_to_one(left: Self::Hash, right: Self::Hash) -> Self::Hash;
 }
 
 /// Trait for algebraic hash functions, built from a permutation using the sponge construction.
-pub trait AlgebraicHasher<F: RichField>: Hasher<F, Hash = HashOut<F>> {
+pub trait AlgebraicHasher<F>: Hasher<F, Hash = HashOut<F>>
+where
+    F: Field,
+{
     // TODO: Adding a `const WIDTH: usize` here yields a compiler error down the line.
     // Maybe try again in a while.
 
@@ -81,7 +91,7 @@ pub trait AlgebraicHasher<F: RichField>: Hasher<F, Hash = HashOut<F>> {
         builder: &mut CircuitBuilder<F, D>,
     ) -> [Target; SPONGE_WIDTH]
     where
-        F: RichField + Extendable<D>;
+        F: Extendable<D>;
 }
 
 /// Generic configuration trait.
@@ -89,7 +99,7 @@ pub trait GenericConfig<const D: usize>:
     Debug + Clone + Sync + Sized + Send + Eq + PartialEq
 {
     /// Main field.
-    type F: RichField + Extendable<D, Extension = Self::FE>;
+    type F: Field + Extendable<D, Extension = Self::FE>;
     /// Field extension of degree D of the main field.
     type FE: FieldExtension<D, BaseField = Self::F>;
     /// Hash function used for building Merkle trees.

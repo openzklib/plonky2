@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 
 use crate::field::extension::{Extendable, FieldExtension};
 use crate::field::polynomial::PolynomialCoeffs;
-use crate::field::types::{Field64, PrimeField64};
+use crate::field::types::{Field, Field64, PrimeField64};
 use crate::fri::proof::{
     CompressedFriProof, CompressedFriQueryRounds, FriInitialTreeProof, FriProof, FriQueryRound,
     FriQueryStep,
@@ -76,18 +76,21 @@ pub trait Read {
     #[inline]
     fn read_field<F>(&mut self) -> Result<F, Self::Error>
     where
-        F: Field64,
+        F: Field,
     {
+        /*
         let mut buf = [0; core::mem::size_of::<u64>()];
         self.read_exact(&mut buf)?;
         Ok(F::from_canonical_u64(u64::from_le_bytes(buf)))
+        */
+        todo!()
     }
 
     /// Reads a vector of elements from the field `F` from `self`.
     #[inline]
     fn read_field_vec<F>(&mut self, length: usize) -> Result<Vec<F>, Self::Error>
     where
-        F: Field64,
+        F: Field,
     {
         (0..length)
             .map(|_| self.read_field())
@@ -98,7 +101,7 @@ pub trait Read {
     #[inline]
     fn read_field_ext<F, const D: usize>(&mut self) -> Result<F::Extension, Self::Error>
     where
-        F: Field64 + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         let mut arr = [F::ZERO; D];
         for a in arr.iter_mut() {
@@ -116,7 +119,7 @@ pub trait Read {
         length: usize,
     ) -> Result<Vec<F::Extension>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         (0..length).map(|_| self.read_field_ext::<F, D>()).collect()
     }
@@ -125,7 +128,7 @@ pub trait Read {
     #[inline]
     fn read_hash<F, H>(&mut self) -> Result<H::Hash, Self::Error>
     where
-        F: RichField,
+        F: Field,
         H: Hasher<F>,
     {
         let mut buf = vec![0; H::HASH_SIZE];
@@ -137,7 +140,7 @@ pub trait Read {
     #[inline]
     fn read_merkle_cap<F, H>(&mut self, cap_height: usize) -> Result<MerkleCap<F, H>, Self::Error>
     where
-        F: RichField,
+        F: Field,
         H: Hasher<F>,
     {
         let cap_length = 1 << cap_height;
@@ -155,7 +158,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<OpeningSet<F, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -184,7 +187,7 @@ pub trait Read {
     #[inline]
     fn read_merkle_proof<F, H>(&mut self) -> Result<MerkleProof<F, H>, Self::Error>
     where
-        F: RichField,
+        F: Field,
         H: Hasher<F>,
     {
         let length = self.read_u8()?;
@@ -202,7 +205,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<FriInitialTreeProof<F, C::Hasher>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -241,7 +244,7 @@ pub trait Read {
         compressed: bool,
     ) -> Result<FriQueryStep<F, C::Hasher, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let evals = self.read_field_ext_vec::<F, D>(arity - usize::from(compressed))?;
@@ -259,7 +262,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<Vec<FriQueryRound<F, C::Hasher, D>>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -287,7 +290,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<FriProof<F, C::Hasher, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -314,7 +317,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<Proof<F, C, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -340,7 +343,7 @@ pub trait Read {
     ) -> Result<ProofWithPublicInputs<F, C, D>, Self::Error>
     where
         Self: Position + Size,
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let proof = self.read_proof(common_data)?;
@@ -360,7 +363,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<CompressedFriQueryRounds<F, C::Hasher, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -408,7 +411,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<CompressedFriProof<F, C::Hasher, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -435,7 +438,7 @@ pub trait Read {
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<CompressedProof<F, C, D>, Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let config = &common_data.config;
@@ -461,7 +464,7 @@ pub trait Read {
     ) -> Result<CompressedProofWithPublicInputs<F, C, D>, Self::Error>
     where
         Self: Position + Size,
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let proof = self.read_compressed_proof(common_data)?;
@@ -499,16 +502,17 @@ pub trait Write {
     #[inline]
     fn write_field<F>(&mut self, x: F) -> Result<(), Self::Error>
     where
-        F: PrimeField64,
+        F: Field,
     {
-        self.write_all(&x.to_canonical_u64().to_le_bytes())
+        // self.write_all(&x.to_canonical_u64().to_le_bytes())
+        todo!()
     }
 
     /// Writes a vector of elements
     #[inline]
     fn write_field_vec<F>(&mut self, v: &[F]) -> Result<(), Self::Error>
     where
-        F: PrimeField64,
+        F: Field,
     {
         for &a in v {
             self.write_field(a)?;
@@ -520,7 +524,7 @@ pub trait Write {
     #[inline]
     fn write_field_ext<F, const D: usize>(&mut self, x: F::Extension) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         for &a in &x.to_basefield_array() {
             self.write_field(a)?;
@@ -535,7 +539,7 @@ pub trait Write {
         v: &[F::Extension],
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         for &a in v {
             self.write_field_ext::<F, D>(a)?;
@@ -547,7 +551,7 @@ pub trait Write {
     #[inline]
     fn write_hash<F, H>(&mut self, h: H::Hash) -> Result<(), Self::Error>
     where
-        F: RichField,
+        F: Field
         H: Hasher<F>,
     {
         self.write_all(&h.to_bytes())
@@ -557,7 +561,7 @@ pub trait Write {
     #[inline]
     fn write_merkle_cap<F, H>(&mut self, cap: &MerkleCap<F, H>) -> Result<(), Self::Error>
     where
-        F: RichField,
+        F: Field,
         H: Hasher<F>,
     {
         for &a in &cap.0 {
@@ -573,7 +577,7 @@ pub trait Write {
         os: &OpeningSet<F, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
     {
         self.write_field_ext_vec::<F, D>(&os.constants)?;
         self.write_field_ext_vec::<F, D>(&os.plonk_sigmas)?;
@@ -588,7 +592,7 @@ pub trait Write {
     #[inline]
     fn write_merkle_proof<F, H>(&mut self, p: &MerkleProof<F, H>) -> Result<(), Self::Error>
     where
-        F: RichField,
+        F: Field,
         H: Hasher<F>,
     {
         let length = p.siblings.len();
@@ -610,7 +614,7 @@ pub trait Write {
         fitp: &FriInitialTreeProof<F, C::Hasher>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         for (v, p) in &fitp.evals_proofs {
@@ -627,7 +631,7 @@ pub trait Write {
         fqs: &FriQueryStep<F, C::Hasher, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         self.write_field_ext_vec::<F, D>(&fqs.evals)?;
@@ -641,7 +645,7 @@ pub trait Write {
         fqrs: &[FriQueryRound<F, C::Hasher, D>],
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         for fqr in fqrs {
@@ -660,7 +664,7 @@ pub trait Write {
         fp: &FriProof<F, C::Hasher, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         for cap in &fp.commit_phase_merkle_caps {
@@ -678,7 +682,7 @@ pub trait Write {
         proof: &Proof<F, C, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         self.write_merkle_cap(&proof.wires_cap)?;
@@ -695,7 +699,7 @@ pub trait Write {
         proof_with_pis: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let ProofWithPublicInputs {
@@ -713,7 +717,7 @@ pub trait Write {
         cfqrs: &CompressedFriQueryRounds<F, C::Hasher, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         for &i in &cfqrs.indices {
@@ -741,7 +745,7 @@ pub trait Write {
         fp: &CompressedFriProof<F, C::Hasher, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         for cap in &fp.commit_phase_merkle_caps {
@@ -759,7 +763,7 @@ pub trait Write {
         proof: &CompressedProof<F, C, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         self.write_merkle_cap(&proof.wires_cap)?;
@@ -776,7 +780,7 @@ pub trait Write {
         proof_with_pis: &CompressedProofWithPublicInputs<F, C, D>,
     ) -> Result<(), Self::Error>
     where
-        F: RichField + Extendable<D>,
+        F: Field + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
         let CompressedProofWithPublicInputs {

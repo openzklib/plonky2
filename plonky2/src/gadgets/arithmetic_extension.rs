@@ -500,7 +500,7 @@ struct QuotientGeneratorExtension<const D: usize> {
     quotient: ExtensionTarget<D>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
+impl<F: Field + Extendable<D>, const D: usize> SimpleGenerator<F>
     for QuotientGeneratorExtension<D>
 {
     fn dependencies(&self) -> Vec<Target> {
@@ -525,7 +525,7 @@ pub struct PowersTarget<const D: usize> {
 }
 
 impl<const D: usize> PowersTarget<D> {
-    pub fn next<F: RichField + Extendable<D>>(
+    pub fn next<F: Field + Extendable<D>>(
         &mut self,
         builder: &mut CircuitBuilder<F, D>,
     ) -> ExtensionTarget<D> {
@@ -534,7 +534,7 @@ impl<const D: usize> PowersTarget<D> {
         result
     }
 
-    pub fn repeated_frobenius<F: RichField + Extendable<D>>(
+    pub fn repeated_frobenius<F: Field + Extendable<D>>(
         self,
         k: usize,
         builder: &mut CircuitBuilder<F, D>,
@@ -558,7 +558,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
 
 /// Represents an extension arithmetic operation in the circuit. Used to memoize results.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct ExtensionArithmeticOperation<F: Field64 + Extendable<D>, const D: usize> {
+pub(crate) struct ExtensionArithmeticOperation<F: Field + Extendable<D>, const D: usize> {
     const_0: F,
     const_1: F,
     multiplicand_0: ExtensionTarget<D>,

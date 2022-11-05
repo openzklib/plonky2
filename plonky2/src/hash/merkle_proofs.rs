@@ -5,6 +5,7 @@ use anyhow::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::field::extension::Extendable;
+use crate::field::types::Field;
 use crate::hash::hash_types::{HashOutTarget, MerkleCapTarget, RichField};
 use crate::hash::hashing::SPONGE_WIDTH;
 use crate::hash::merkle_tree::MerkleCap;
@@ -14,12 +15,12 @@ use crate::plonk::config::{AlgebraicHasher, Hasher};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
-pub struct MerkleProof<F: RichField, H: Hasher<F>> {
+pub struct MerkleProof<F: Field, H: Hasher<F>> {
     /// The Merkle digest of each sibling subtree, staying from the bottommost layer.
     pub siblings: Vec<H::Hash>,
 }
 
-impl<F: RichField, H: Hasher<F>> MerkleProof<F, H> {
+impl<F: Field, H: Hasher<F>> MerkleProof<F, H> {
     pub fn len(&self) -> usize {
         self.siblings.len()
     }
@@ -37,7 +38,7 @@ pub struct MerkleProofTarget {
 
 /// Verifies that the given leaf data is present at the given index in the Merkle tree with the
 /// given root.
-pub fn verify_merkle_proof<F: RichField, H: Hasher<F>>(
+pub fn verify_merkle_proof<F: Field, H: Hasher<F>>(
     leaf_data: Vec<F>,
     leaf_index: usize,
     merkle_root: H::Hash,
@@ -49,7 +50,7 @@ pub fn verify_merkle_proof<F: RichField, H: Hasher<F>>(
 
 /// Verifies that the given leaf data is present at the given index in the Merkle tree with the
 /// given cap.
-pub fn verify_merkle_proof_to_cap<F: RichField, H: Hasher<F>>(
+pub fn verify_merkle_proof_to_cap<F: Field, H: Hasher<F>>(
     leaf_data: Vec<F>,
     leaf_index: usize,
     merkle_cap: &MerkleCap<F, H>,

@@ -26,8 +26,7 @@ use crate::util::{log2_strict, reverse_bits, reverse_index_bits_in_place, transp
 pub const SALT_SIZE: usize = 4;
 
 /// Represents a FRI oracle, i.e. a batch of polynomials which have been Merklized.
-pub struct PolynomialBatch<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
-{
+pub struct PolynomialBatch<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
     pub polynomials: Vec<PolynomialCoeffs<F>>,
     pub merkle_tree: MerkleTree<F, C::Hasher>,
     pub degree_log: usize,
@@ -35,7 +34,7 @@ pub struct PolynomialBatch<F: RichField + Extendable<D>, C: GenericConfig<D, F =
     pub blinding: bool,
 }
 
-impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
+impl<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     PolynomialBatch<F, C, D>
 {
     /// Creates a list polynomial commitment for the polynomials interpolating the values in `values`.

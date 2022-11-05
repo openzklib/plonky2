@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use crate::field::extension::{Extendable, FieldExtension};
+use crate::field::types::Field;
 use crate::hash::hash_types::{HashOut, HashOutTarget, MerkleCapTarget, RichField};
 use crate::hash::hashing::{PlonkyPermutation, SPONGE_RATE, SPONGE_WIDTH};
 use crate::hash::merkle_tree::MerkleCap;
@@ -13,7 +14,7 @@ use crate::plonk::config::{AlgebraicHasher, GenericHashOut, Hasher};
 
 /// Observes prover messages, and generates challenges by hashing the transcript, a la Fiat-Shamir.
 #[derive(Clone)]
-pub struct Challenger<F: RichField, H: Hasher<F>> {
+pub struct Challenger<F: Field, H: Hasher<F>> {
     sponge_state: [F; SPONGE_WIDTH],
     input_buffer: Vec<F>,
     output_buffer: Vec<F>,
@@ -28,7 +29,7 @@ pub struct Challenger<F: RichField, H: Hasher<F>> {
 /// design, but it can be viewed as a duplex sponge whose inputs are sometimes zero (when we perform
 /// multiple squeezes) and whose outputs are sometimes ignored (when we perform multiple
 /// absorptions). Thus the security properties of a duplex sponge still apply to our design.
-impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
+impl<F: Field, H: Hasher<F>> Challenger<F, H> {
     pub fn new() -> Challenger<F, H> {
         Challenger {
             sponge_state: [F::ZERO; SPONGE_WIDTH],
@@ -51,7 +52,7 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
 
     pub fn observe_extension_element<const D: usize>(&mut self, element: &F::Extension)
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         self.observe_elements(&element.to_basefield_array());
     }
@@ -64,7 +65,7 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
 
     pub fn observe_extension_elements<const D: usize>(&mut self, elements: &[F::Extension])
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         for element in elements {
             self.observe_extension_element(element);
@@ -110,7 +111,7 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
 
     pub fn get_extension_challenge<const D: usize>(&mut self) -> F::Extension
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         let mut arr = [F::ZERO; D];
         arr.copy_from_slice(&self.get_n_challenges(D));
@@ -119,7 +120,7 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
 
     pub fn get_n_extension_challenges<const D: usize>(&mut self, n: usize) -> Vec<F::Extension>
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         (0..n)
             .map(|_| self.get_extension_challenge::<D>())
@@ -155,7 +156,7 @@ impl<F: RichField, H: Hasher<F>> Challenger<F, H> {
     }
 }
 
-impl<F: RichField, H: AlgebraicHasher<F>> Default for Challenger<F, H> {
+impl<F: Field, H: AlgebraicHasher<F>> Default for Challenger<F, H> {
     fn default() -> Self {
         Self::new()
     }
@@ -164,8 +165,7 @@ impl<F: RichField, H: AlgebraicHasher<F>> Default for Challenger<F, H> {
 /// A recursive version of `Challenger`. The main difference is that `RecursiveChallenger`'s input
 /// buffer can grow beyond `SPONGE_RATE`. This is so that `observe_element` etc do not need access
 /// to the `CircuitBuilder`.
-pub struct RecursiveChallenger<F: RichField + Extendable<D>, H: AlgebraicHasher<F>, const D: usize>
-{
+pub struct RecursiveChallenger<F: Field + Extendable<D>, H: AlgebraicHasher<F>, const D: usize> {
     sponge_state: [Target; SPONGE_WIDTH],
     input_buffer: Vec<Target>,
     output_buffer: Vec<Target>,
