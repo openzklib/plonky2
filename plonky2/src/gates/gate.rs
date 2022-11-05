@@ -23,7 +23,7 @@ use crate::plonk::vars::{
 };
 
 /// A custom gate.
-pub trait Gate<F: RichField + Extendable<D>, const D: usize>: 'static + Send + Sync {
+pub trait Gate<F: Field + Extendable<D>, const D: usize>: 'static + Send + Sync {
     fn id(&self) -> String;
 
     fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension>;
@@ -193,29 +193,29 @@ pub trait Gate<F: RichField + Extendable<D>, const D: usize>: 'static + Send + S
 
 /// A wrapper around an `Rc<Gate>` which implements `PartialEq`, `Eq` and `Hash` based on gate IDs.
 #[derive(Clone)]
-pub struct GateRef<F: RichField + Extendable<D>, const D: usize>(pub(crate) Arc<dyn Gate<F, D>>);
+pub struct GateRef<F: Field + Extendable<D>, const D: usize>(pub(crate) Arc<dyn Gate<F, D>>);
 
-impl<F: RichField + Extendable<D>, const D: usize> GateRef<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> GateRef<F, D> {
     pub fn new<G: Gate<F, D>>(gate: G) -> GateRef<F, D> {
         GateRef(Arc::new(gate))
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> PartialEq for GateRef<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> PartialEq for GateRef<F, D> {
     fn eq(&self, other: &Self) -> bool {
         self.0.id() == other.0.id()
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Hash for GateRef<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> Hash for GateRef<F, D> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.id().hash(state)
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Eq for GateRef<F, D> {}
+impl<F: Field + Extendable<D>, const D: usize> Eq for GateRef<F, D> {}
 
-impl<F: RichField + Extendable<D>, const D: usize> Debug for GateRef<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> Debug for GateRef<F, D> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(f, "{}", self.0.id())
     }
@@ -225,20 +225,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Debug for GateRef<F, D> {
 /// An available slot is of the form `(row, op)`, meaning the current available slot
 /// is at gate index `row` in the `op`-th operation.
 #[derive(Clone, Debug, Default)]
-pub struct CurrentSlot<F: RichField + Extendable<D>, const D: usize> {
+pub struct CurrentSlot<F: Field + Extendable<D>, const D: usize> {
     pub current_slot: HashMap<Vec<F>, (usize, usize)>,
 }
 
 /// A gate along with any constants used to configure it.
 #[derive(Clone)]
-pub struct GateInstance<F: RichField + Extendable<D>, const D: usize> {
+pub struct GateInstance<F: Field + Extendable<D>, const D: usize> {
     pub gate_ref: GateRef<F, D>,
     pub constants: Vec<F>,
 }
 
 /// Map each gate to a boolean prefix used to construct the gate's selector polynomial.
 #[derive(Debug, Clone)]
-pub struct PrefixedGate<F: RichField + Extendable<D>, const D: usize> {
+pub struct PrefixedGate<F: Field + Extendable<D>, const D: usize> {
     pub gate: GateRef<F, D>,
     pub prefix: Vec<bool>,
 }
@@ -253,7 +253,7 @@ fn compute_filter<K: Field>(row: usize, group_range: Range<usize>, s: K, many_se
         .product()
 }
 
-fn compute_filter_circuit<F: RichField + Extendable<D>, const D: usize>(
+fn compute_filter_circuit<F: Field + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     row: usize,
     group_range: Range<usize>,

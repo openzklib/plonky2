@@ -50,7 +50,7 @@ use crate::util::partial_products::num_partial_products;
 use crate::util::timing::TimingTree;
 use crate::util::{log2_ceil, log2_strict, transpose, transpose_poly_values};
 
-pub struct CircuitBuilder<F: RichField + Extendable<D>, const D: usize> {
+pub struct CircuitBuilder<F: Field + Extendable<D>, const D: usize> {
     pub config: CircuitConfig,
 
     /// The types of gates used in this circuit.
@@ -98,7 +98,7 @@ pub struct CircuitBuilder<F: RichField + Extendable<D>, const D: usize> {
     pub(crate) verifier_data_public_input: Option<VerifierCircuitTarget>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     pub fn new(config: CircuitConfig) -> Self {
         let builder = CircuitBuilder {
             config,

@@ -33,7 +33,7 @@ pub trait Witness<F: Field> {
 
     fn get_extension_target<const D: usize>(&self, et: ExtensionTarget<D>) -> F::Extension
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         F::Extension::from_basefield_array(
             self.get_targets(&et.to_target_array()).try_into().unwrap(),
@@ -42,7 +42,7 @@ pub trait Witness<F: Field> {
 
     fn get_extension_targets<const D: usize>(&self, ets: &[ExtensionTarget<D>]) -> Vec<F::Extension>
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         ets.iter()
             .map(|&et| self.get_extension_target(et))
@@ -93,9 +93,7 @@ pub trait Witness<F: Field> {
         &mut self,
         ct: &MerkleCapTarget,
         value: &MerkleCap<F, H>,
-    ) where
-        F: RichField,
-    {
+    ) {
         for (ht, h) in ct.0.iter().zip(&value.0) {
             self.set_hash_target(*ht, *h);
         }
@@ -103,7 +101,7 @@ pub trait Witness<F: Field> {
 
     fn set_extension_target<const D: usize>(&mut self, et: ExtensionTarget<D>, value: F::Extension)
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         self.set_target_arr(et.0, value.to_basefield_array());
     }
@@ -119,7 +117,7 @@ pub trait Witness<F: Field> {
         ets: &[ExtensionTarget<D>],
         values: &[F::Extension],
     ) where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         debug_assert_eq!(ets.len(), values.len());
         ets.iter()
@@ -138,7 +136,7 @@ pub trait Witness<F: Field> {
         proof_with_pis_target: &ProofWithPublicInputsTarget<D>,
         proof_with_pis: &ProofWithPublicInputs<F, C, D>,
     ) where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
         C::Hasher: AlgebraicHasher<F>,
     {
         let ProofWithPublicInputs {
@@ -164,7 +162,7 @@ pub trait Witness<F: Field> {
         proof_target: &ProofTarget<D>,
         proof: &Proof<F, C, D>,
     ) where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
         C::Hasher: AlgebraicHasher<F>,
     {
         self.set_cap_target(&proof_target.wires_cap, &proof.wires_cap);
@@ -187,7 +185,7 @@ pub trait Witness<F: Field> {
         fri_openings_target: &FriOpeningsTarget<D>,
         fri_openings: &FriOpenings<F, D>,
     ) where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
     {
         for (batch_target, batch) in fri_openings_target
             .batches
@@ -203,7 +201,7 @@ pub trait Witness<F: Field> {
         vdt: &VerifierCircuitTarget,
         vd: &VerifierOnlyCircuitData<C, D>,
     ) where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
         C::Hasher: AlgebraicHasher<F>,
     {
         self.set_cap_target(&vdt.constants_sigmas_cap, &vd.constants_sigmas_cap);
@@ -226,7 +224,7 @@ pub trait Witness<F: Field> {
 
     fn set_ext_wires<W, const D: usize>(&mut self, wires: W, value: F::Extension)
     where
-        F: RichField + Extendable<D>,
+        F: Extendable<D>,
         W: IntoIterator<Item = Wire>,
     {
         self.set_wires(wires, &value.to_basefield_array());

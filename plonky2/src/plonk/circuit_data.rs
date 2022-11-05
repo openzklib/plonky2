@@ -106,15 +106,13 @@ impl CircuitConfig {
 }
 
 /// Circuit data required by the prover or the verifier.
-pub struct CircuitData<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
+pub struct CircuitData<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
     pub prover_only: ProverOnlyCircuitData<F, C, D>,
     pub verifier_only: VerifierOnlyCircuitData<C, D>,
     pub common: CommonCircuitData<F, D>,
 }
 
-impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
-    CircuitData<F, C, D>
-{
+impl<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> CircuitData<F, C, D> {
     pub fn prove(&self, inputs: PartialWitness<F>) -> Result<ProofWithPublicInputs<F, C, D>> {
         prove(
             &self.prover_only,
@@ -181,16 +179,12 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 /// structure as succinct as we can. Thus we include various precomputed data which isn't strictly
 /// required, like LDEs of preprocessed polynomials. If more succinctness was desired, we could
 /// construct a more minimal prover structure and convert back and forth.
-pub struct ProverCircuitData<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-> {
+pub struct ProverCircuitData<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize> {
     pub prover_only: ProverOnlyCircuitData<F, C, D>,
     pub common: CommonCircuitData<F, D>,
 }
 
-impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
+impl<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     ProverCircuitData<F, C, D>
 {
     pub fn prove(&self, inputs: PartialWitness<F>) -> Result<ProofWithPublicInputs<F, C, D>> {
@@ -205,16 +199,13 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 
 /// Circuit data required by the prover.
 #[derive(Debug)]
-pub struct VerifierCircuitData<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
-> {
+pub struct VerifierCircuitData<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
+{
     pub verifier_only: VerifierOnlyCircuitData<C, D>,
     pub common: CommonCircuitData<F, D>,
 }
 
-impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
+impl<F: Field + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     VerifierCircuitData<F, C, D>
 {
     pub fn verify(&self, proof_with_pis: ProofWithPublicInputs<F, C, D>) -> Result<()> {
@@ -231,7 +222,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 
 /// Circuit data required by the prover, but not the verifier.
 pub struct ProverOnlyCircuitData<
-    F: RichField + Extendable<D>,
+    F: Field + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,
 > {
@@ -269,7 +260,7 @@ pub struct VerifierOnlyCircuitData<C: GenericConfig<D>, const D: usize> {
 
 /// Circuit data required by both the prover and the verifier.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct CommonCircuitData<F: RichField + Extendable<D>, const D: usize> {
+pub struct CommonCircuitData<F: Field + Extendable<D>, const D: usize> {
     pub config: CircuitConfig,
 
     pub(crate) fri_params: FriParams,
@@ -298,7 +289,7 @@ pub struct CommonCircuitData<F: RichField + Extendable<D>, const D: usize> {
     pub(crate) num_partial_products: usize,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> CommonCircuitData<F, D> {
+impl<F: Field + Extendable<D>, const D: usize> CommonCircuitData<F, D> {
     pub const fn degree_bits(&self) -> usize {
         self.fri_params.degree_bits
     }
