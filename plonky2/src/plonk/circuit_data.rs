@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use core::ops::{Range, RangeFrom};
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::field::extension::Extendable;
 use crate::field::fft::FftRootTable;
@@ -32,7 +33,7 @@ use crate::plonk::prover::prove;
 use crate::plonk::verifier::verify;
 use crate::util::timing::TimingTree;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CircuitConfig {
     pub num_wires: usize,
     pub num_routed_wires: usize,
@@ -258,7 +259,7 @@ pub struct ProverOnlyCircuitData<
 }
 
 /// Circuit data required by the verifier, but not the prover.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct VerifierOnlyCircuitData<C: GenericConfig<D>, const D: usize> {
     /// A commitment to each constant polynomial and each permutation polynomial.
     pub constants_sigmas_cap: MerkleCap<C::F, C::Hasher>,
@@ -268,7 +269,8 @@ pub struct VerifierOnlyCircuitData<C: GenericConfig<D>, const D: usize> {
 }
 
 /// Circuit data required by both the prover and the verifier.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "F: Deserialize<'de>", serialize = "F: Serialize"))]
 pub struct CommonCircuitData<F: RichField + Extendable<D>, const D: usize> {
     pub config: CircuitConfig,
 

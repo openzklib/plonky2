@@ -22,7 +22,7 @@ use crate::with_context;
 /// Evaluate the vanishing polynomial at `x`. In this context, the vanishing polynomial is a random
 /// linear combination of gate constraints, plus some other terms relating to the permutation
 /// argument. All such terms should vanish on `H`.
-pub(crate) fn eval_vanishing_poly<
+pub fn eval_vanishing_poly<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
     const D: usize,

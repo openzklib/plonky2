@@ -22,7 +22,7 @@ use crate::plonk::proof::{
 };
 use crate::util::reverse_bits;
 
-fn get_challenges<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+pub fn get_challenges<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
     public_inputs_hash: <<C as GenericConfig<D>>::InnerHasher as Hasher<F>>::Hash,
     wires_cap: &MerkleCap<F, C::Hasher>,
     plonk_zs_partial_products_cap: &MerkleCap<F, C::Hasher>,
@@ -73,7 +73,7 @@ fn get_challenges<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, cons
 impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     ProofWithPublicInputs<F, C, D>
 {
-    pub(crate) fn fri_query_indices(
+    pub fn fri_query_indices(
         &self,
         circuit_digest: &<<C as GenericConfig<D>>::Hasher as Hasher<C::F>>::Hash,
         common_data: &CommonCircuitData<F, D>,
@@ -85,7 +85,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     }
 
     /// Computes all Fiat-Shamir challenges used in the Plonk proof.
-    pub(crate) fn get_challenges(
+    pub fn get_challenges(
         &self,
         public_inputs_hash: <<C as GenericConfig<D>>::InnerHasher as Hasher<F>>::Hash,
         circuit_digest: &<<C as GenericConfig<D>>::Hasher as Hasher<C::F>>::Hash,
@@ -124,7 +124,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     CompressedProofWithPublicInputs<F, C, D>
 {
     /// Computes all Fiat-Shamir challenges used in the Plonk proof.
-    pub(crate) fn get_challenges(
+    pub fn get_challenges(
         &self,
         public_inputs_hash: <<C as GenericConfig<D>>::InnerHasher as Hasher<F>>::Hash,
         circuit_digest: &<<C as GenericConfig<D>>::Hasher as Hasher<C::F>>::Hash,
