@@ -269,8 +269,7 @@ pub struct VerifierOnlyCircuitData<C: GenericConfig<D>, const D: usize> {
 }
 
 /// Circuit data required by both the prover and the verifier.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "F: Deserialize<'de>", serialize = "F: Serialize"))]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CommonCircuitData<F: RichField + Extendable<D>, const D: usize> {
     pub config: CircuitConfig,
 
