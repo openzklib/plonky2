@@ -3,5 +3,7 @@
 
 extern crate alloc;
 
+pub use num;
+
 pub mod curve;
 pub mod gadgets;
