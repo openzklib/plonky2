@@ -1,7 +1,3 @@
-#![allow(incomplete_features)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::type_complexity)]
-#![feature(generic_const_exprs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;

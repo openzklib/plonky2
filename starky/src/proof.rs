@@ -1,7 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use itertools::Itertools;
 use maybe_rayon::*;
 use plonky2::field::extension::{Extendable, FieldExtension};
 use plonky2::fri::oracle::PolynomialBatch;
@@ -73,7 +72,6 @@ pub struct StarkProofWithPublicInputs<
     const D: usize,
 > {
     pub proof: StarkProof<F, C, D>,
-    // TODO: Maybe make it generic over a `S: Stark` and replace with `[F; S::PUBLIC_INPUTS]`.
     pub public_inputs: Vec<F>,
 }
 
@@ -166,7 +164,7 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .chain(self.permutation_zs.iter().flatten())
                 .chain(&self.quotient_polys)
                 .copied()
-                .collect_vec(),
+                .collect(),
         };
         let zeta_next_batch = FriOpeningBatch {
             values: self
@@ -174,7 +172,7 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .iter()
                 .chain(self.permutation_zs_next.iter().flatten())
                 .copied()
-                .collect_vec(),
+                .collect(),
         };
         FriOpenings {
             batches: vec![zeta_batch, zeta_next_batch],
@@ -199,7 +197,7 @@ impl<const D: usize> StarkOpeningSetTarget<D> {
                 .chain(self.permutation_zs.iter().flatten())
                 .chain(&self.quotient_polys)
                 .copied()
-                .collect_vec(),
+                .collect(),
         };
         let zeta_next_batch = FriOpeningBatchTarget {
             values: self
@@ -207,7 +205,7 @@ impl<const D: usize> StarkOpeningSetTarget<D> {
                 .iter()
                 .chain(self.permutation_zs_next.iter().flatten())
                 .copied()
-                .collect_vec(),
+                .collect(),
         };
         FriOpeningsTarget {
             batches: vec![zeta_batch, zeta_next_batch],

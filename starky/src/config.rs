@@ -1,13 +1,16 @@
 use plonky2::fri::reduction_strategies::FriReductionStrategy;
 use plonky2::fri::{FriConfig, FriParams};
 
+/// STARK Configuration
 pub struct StarkConfig {
+    /// Number of Bits of Security
     pub security_bits: usize,
 
     /// The number of challenge points to generate, for IOPs that have soundness errors of (roughly)
     /// `degree / |F|`.
     pub num_challenges: usize,
 
+    /// FRI Configuration
     pub fri_config: FriConfig,
 }
 

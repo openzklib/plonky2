@@ -58,12 +58,17 @@ impl<F: RichField + Extendable<D>, const D: usize> FibonacciStark<F, D> {
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark<F, D> {
-    const COLUMNS: usize = 4;
-    const PUBLIC_INPUTS: usize = 3;
+    fn columns(&self) -> usize {
+        4
+    }
+
+    fn public_inputs(&self) -> usize {
+        3
+    }
 
     fn eval_packed_generic<FE, P, const D2: usize>(
         &self,
-        vars: StarkEvaluationVars<FE, P, { Self::COLUMNS }, { Self::PUBLIC_INPUTS }>,
+        vars: StarkEvaluationVars<FE, P>,
         yield_constr: &mut ConstraintConsumer<P>,
     ) where
         FE: FieldExtension<D2, BaseField = F>,
@@ -88,7 +93,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
     fn eval_ext_circuit(
         &self,
         builder: &mut CircuitBuilder<F, D>,
-        vars: StarkEvaluationTargets<D, { Self::COLUMNS }, { Self::PUBLIC_INPUTS }>,
+        vars: StarkEvaluationTargets<D>,
         yield_constr: &mut RecursiveConstraintConsumer<F, D>,
     ) {
         // Check public inputs.
@@ -124,26 +129,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use plonky2::field::extension::Extendable;
     use plonky2::field::types::Field;
-    use plonky2::hash::hash_types::RichField;
     use plonky2::iop::witness::PartialWitness;
-    use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
-    use plonky2::plonk::config::{
-        AlgebraicHasher, GenericConfig, Hasher, PoseidonGoldilocksConfig,
-    };
+    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig};
     use plonky2::util::timing::TimingTree;
 
+    use super::*;
     use crate::config::StarkConfig;
-    use crate::fibonacci_stark::FibonacciStark;
     use crate::proof::StarkProofWithPublicInputs;
     use crate::prover::prove;
     use crate::recursive_verifier::{
         add_virtual_stark_proof_with_pis, set_stark_proof_with_pis_target,
         verify_stark_proof_circuit,
     };
-    use crate::stark::Stark;
     use crate::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
     use crate::verifier::verify_stark_proof;
 
@@ -160,7 +159,7 @@ mod tests {
 
         let config = StarkConfig::standard_fast_config();
         let num_rows = 1 << 5;
-        let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
+        let public_inputs = vec![F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
         let proof = prove::<F, C, S, D>(
@@ -183,7 +182,11 @@ mod tests {
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
-        test_stark_low_degree(stark)
+        test_stark_low_degree(
+            stark,
+            stark.metadata().columns,
+            stark.metadata().public_inputs,
+        )
     }
 
     #[test]
@@ -195,7 +198,11 @@ mod tests {
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
-        test_stark_circuit_constraints::<F, C, S, D>(stark)
+        test_stark_circuit_constraints::<F, C, S, D>(
+            stark,
+            stark.metadata().columns,
+            stark.metadata().public_inputs,
+        )
     }
 
     #[test]
@@ -208,7 +215,7 @@ mod tests {
 
         let config = StarkConfig::standard_fast_config();
         let num_rows = 1 << 5;
-        let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
+        let public_inputs = vec![F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
         let proof = prove::<F, C, S, D>(
@@ -237,9 +244,6 @@ mod tests {
     ) -> Result<()>
     where
         InnerC::Hasher: AlgebraicHasher<F>,
-        [(); S::COLUMNS]:,
-        [(); S::PUBLIC_INPUTS]:,
-        [(); C::Hasher::HASH_SIZE]:,
     {
         let circuit_config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(circuit_config);

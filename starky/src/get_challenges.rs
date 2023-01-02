@@ -18,6 +18,7 @@ use crate::permutation::{
 use crate::proof::*;
 use crate::stark::Stark;
 
+#[allow(clippy::too_many_arguments)] // NOTE: Clippy is too harsh here.
 fn get_challenges<F, C, S, const D: usize>(
     stark: &S,
     trace_cap: &MerkleCap<F, C::Hasher>,
@@ -45,7 +46,7 @@ where
         let tmp = get_n_permutation_challenge_sets(
             &mut challenger,
             num_challenges,
-            stark.permutation_batch_size(),
+            stark.metadata().permutation_batch_size(),
         );
         challenger.observe_cap(permutation_zs_cap);
         tmp
@@ -158,7 +159,7 @@ where
             builder,
             &mut challenger,
             num_challenges,
-            stark.permutation_batch_size(),
+            stark.metadata().permutation_batch_size(),
         );
         challenger.observe_cap(permutation_zs_cap);
         tmp

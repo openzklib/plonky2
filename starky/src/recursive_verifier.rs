@@ -37,17 +37,17 @@ pub fn verify_stark_proof_circuit<
     inner_config: &StarkConfig,
 ) where
     C::Hasher: AlgebraicHasher<F>,
-    [(); S::COLUMNS]:,
-    [(); S::PUBLIC_INPUTS]:,
 {
-    assert_eq!(proof_with_pis.public_inputs.len(), S::PUBLIC_INPUTS);
+    assert_eq!(
+        proof_with_pis.public_inputs.len(),
+        stark.metadata().public_inputs
+    );
     let degree_bits = proof_with_pis.proof.recover_degree_bits(inner_config);
     let challenges = with_context!(
         builder,
         "compute challenges",
         proof_with_pis.get_challenges::<F, C, S>(builder, &stark, inner_config)
     );
-
     verify_stark_proof_with_challenges_circuit::<F, C, S, D>(
         builder,
         stark,
@@ -73,8 +73,6 @@ fn verify_stark_proof_with_challenges_circuit<
     degree_bits: usize,
 ) where
     C::Hasher: AlgebraicHasher<F>,
-    [(); S::COLUMNS]:,
-    [(); S::PUBLIC_INPUTS]:,
 {
     check_permutation_options(&stark, &proof_with_pis, &challenges).unwrap();
     let one = builder.one_extension();
@@ -91,14 +89,12 @@ fn verify_stark_proof_with_challenges_circuit<
         quotient_polys,
     } = &proof.openings;
     let vars = StarkEvaluationTargets {
-        local_values: &local_values.to_vec().try_into().unwrap(),
-        next_values: &next_values.to_vec().try_into().unwrap(),
+        local_values,
+        next_values,
         public_inputs: &public_inputs
             .into_iter()
             .map(|t| builder.convert_to_ext(t))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap(),
+            .collect::<Vec<_>>(),
     };
 
     let zeta_pow_deg = builder.exp_power_of_2_extension(challenges.stark_zeta, degree_bits);
@@ -117,13 +113,15 @@ fn verify_stark_proof_with_challenges_circuit<
         l_last,
     );
 
-    let permutation_data = stark
-        .uses_permutation_args()
-        .then(|| PermutationCheckDataTarget {
-            local_zs: permutation_zs.as_ref().unwrap().clone(),
-            next_zs: permutation_zs_next.as_ref().unwrap().clone(),
-            permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
-        });
+    let permutation_data =
+        stark
+            .metadata()
+            .uses_permutation_args()
+            .then(|| PermutationCheckDataTarget {
+                local_zs: permutation_zs.as_ref().unwrap().clone(),
+                next_zs: permutation_zs_next.as_ref().unwrap().clone(),
+                permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
+            });
 
     with_context!(
         builder,
@@ -142,7 +140,7 @@ fn verify_stark_proof_with_challenges_circuit<
     // Check each polynomial identity, of the form `vanishing(x) = Z_H(x) quotient(x)`, at zeta.
     let mut scale = ReducingFactorTarget::new(zeta_pow_deg);
     for (i, chunk) in quotient_polys
-        .chunks(stark.quotient_degree_factor())
+        .chunks(stark.metadata().quotient_degree_factor())
         .enumerate()
     {
         let recombined_quotient = scale.reduce(chunk, builder);
@@ -153,9 +151,9 @@ fn verify_stark_proof_with_challenges_circuit<
     let merkle_caps = once(proof.trace_cap)
         .chain(proof.permutation_zs_cap)
         .chain(once(proof.quotient_polys_cap))
-        .collect_vec();
+        .collect::<Vec<_>>();
 
-    let fri_instance = stark.fri_instance_target(
+    let fri_instance = stark.metadata().fri_instance_target(
         builder,
         challenges.stark_zeta,
         F::primitive_root_of_unity(degree_bits),
@@ -183,7 +181,6 @@ fn eval_l_0_and_l_last_circuit<F: RichField + Extendable<D>, const D: usize>(
     let l_0_deno = builder.mul_sub_extension(n, x, n);
     let l_last_deno = builder.mul_sub_extension(g, x, one);
     let l_last_deno = builder.mul_extension(n, l_last_deno);
-
     (
         builder.div_extension(z_x, l_0_deno),
         builder.div_extension(z_x, l_last_deno),
@@ -200,11 +197,10 @@ pub fn add_virtual_stark_proof_with_pis<
     config: &StarkConfig,
     degree_bits: usize,
 ) -> StarkProofWithPublicInputsTarget<D> {
-    let proof = add_virtual_stark_proof::<F, S, D>(builder, stark, config, degree_bits);
-    let public_inputs = builder.add_virtual_targets(S::PUBLIC_INPUTS);
+    let metadata = stark.metadata();
     StarkProofWithPublicInputsTarget {
-        proof,
-        public_inputs,
+        proof: add_virtual_stark_proof(builder, stark, config, degree_bits),
+        public_inputs: builder.add_virtual_targets(metadata.public_inputs),
     }
 }
 
@@ -216,20 +212,21 @@ pub fn add_virtual_stark_proof<F: RichField + Extendable<D>, S: Stark<F, D>, con
 ) -> StarkProofTarget<D> {
     let fri_params = config.fri_params(degree_bits);
     let cap_height = fri_params.config.cap_height;
-
-    let num_leaves_per_oracle = once(S::COLUMNS)
+    let num_leaves_per_oracle = once(stark.metadata().columns)
         .chain(
             stark
+                .metadata()
                 .uses_permutation_args()
-                .then(|| stark.num_permutation_batches(config)),
+                .then(|| stark.metadata().num_permutation_batches(config)),
         )
-        .chain(once(stark.quotient_degree_factor() * config.num_challenges))
-        .collect_vec();
-
+        .chain(once(
+            stark.metadata().quotient_degree_factor() * config.num_challenges,
+        ))
+        .collect::<Vec<_>>();
     let permutation_zs_cap = stark
+        .metadata()
         .uses_permutation_args()
         .then(|| builder.add_virtual_cap(cap_height));
-
     StarkProofTarget {
         trace_cap: builder.add_virtual_cap(cap_height),
         permutation_zs_cap,
@@ -246,16 +243,17 @@ fn add_stark_opening_set_target<F: RichField + Extendable<D>, S: Stark<F, D>, co
 ) -> StarkOpeningSetTarget<D> {
     let num_challenges = config.num_challenges;
     StarkOpeningSetTarget {
-        local_values: builder.add_virtual_extension_targets(S::COLUMNS),
-        next_values: builder.add_virtual_extension_targets(S::COLUMNS),
-        permutation_zs: stark
-            .uses_permutation_args()
-            .then(|| builder.add_virtual_extension_targets(stark.num_permutation_batches(config))),
-        permutation_zs_next: stark
-            .uses_permutation_args()
-            .then(|| builder.add_virtual_extension_targets(stark.num_permutation_batches(config))),
-        quotient_polys: builder
-            .add_virtual_extension_targets(stark.quotient_degree_factor() * num_challenges),
+        local_values: builder.add_virtual_extension_targets(stark.metadata().columns),
+        next_values: builder.add_virtual_extension_targets(stark.metadata().columns),
+        permutation_zs: stark.metadata().uses_permutation_args().then(|| {
+            builder.add_virtual_extension_targets(stark.metadata().num_permutation_batches(config))
+        }),
+        permutation_zs_next: stark.metadata().uses_permutation_args().then(|| {
+            builder.add_virtual_extension_targets(stark.metadata().num_permutation_batches(config))
+        }),
+        quotient_polys: builder.add_virtual_extension_targets(
+            stark.metadata().quotient_degree_factor() * num_challenges,
+        ),
     }
 }
 
@@ -327,7 +325,7 @@ fn check_permutation_options<F: RichField + Extendable<D>, S: Stark<F, D>, const
     ensure!(
         options_is_some
             .into_iter()
-            .all(|b| b == stark.uses_permutation_args()),
+            .all(|b| b == stark.metadata().uses_permutation_args()),
         "Permutation data doesn't match with Stark configuration."
     );
     Ok(())
