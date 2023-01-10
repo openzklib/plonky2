@@ -13,7 +13,7 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::ceil_div_usize;
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
 use crate::permutation::PermutationPair;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
@@ -24,51 +24,6 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
 
     /// Returns the number of public inputs.
     fn public_inputs(&self) -> usize;
-
-    /// Evaluate constraints at a vector of points.
-    ///
-    /// The points are elements of a field `FE`, a degree `D2` extension of `F`. This lets us
-    /// evaluate constraints over a larger domain if desired. This can also be called with `FE = F`
-    /// and `D2 = 1`, in which case we are using the trivial extension, i.e. just evaluating
-    /// constraints over `F`.
-    fn eval_packed_generic<FE, P, const D2: usize>(
-        &self,
-        vars: StarkEvaluationVars<FE, P>,
-        yield_constr: &mut ConstraintConsumer<P>,
-    ) where
-        FE: FieldExtension<D2, BaseField = F>,
-        P: PackedField<Scalar = FE>;
-
-    /// Evaluate constraints at a vector of points from the base field `F`.
-    #[inline]
-    fn eval_packed_base<P: PackedField<Scalar = F>>(
-        &self,
-        vars: StarkEvaluationVars<F, P>,
-        yield_constr: &mut ConstraintConsumer<P>,
-    ) {
-        self.eval_packed_generic(vars, yield_constr)
-    }
-
-    /// Evaluate constraints at a single point from the degree `D` extension field.
-    #[inline]
-    fn eval_ext(
-        &self,
-        vars: StarkEvaluationVars<F::Extension, F::Extension>,
-        yield_constr: &mut ConstraintConsumer<F::Extension>,
-    ) {
-        self.eval_packed_generic(vars, yield_constr)
-    }
-
-    /// Evaluate constraints at a vector of points from the degree `D` extension field. This is like
-    /// `eval_ext`, except in the context of a recursive circuit.
-    /// Note: constraints must be added through`yeld_constr.constraint(builder, constraint)` in the
-    /// same order as they are given in `eval_packed_generic`.
-    fn eval_ext_circuit(
-        &self,
-        builder: &mut CircuitBuilder<F, D>,
-        vars: StarkEvaluationTargets<D>,
-        yield_constr: &mut RecursiveConstraintConsumer<F, D>,
-    );
 
     /// The maximum constraint degree.
     fn constraint_degree(&self) -> usize;
@@ -89,6 +44,83 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
             public_inputs: self.public_inputs(),
             permutation_pairs: self.permutation_pairs().len(),
         }
+    }
+
+    ///
+    fn eval<T, E, COM>(
+        &self,
+        local_values: &[E],
+        next_values: &[E],
+        public_inputs: &[E],
+        consumer: &mut Consumer<T, E>,
+        compiler: &mut COM,
+    ) where
+        E: Clone,
+        COM: constraint_consumer::Mul<E>
+            + constraint_consumer::ScalarMulAdd<T, E>
+            + constraint_consumer::Sub<E>;
+
+    /// Evaluate constraints at a vector of points.
+    ///
+    /// The points are elements of a field `FE`, a degree `D2` extension of `F`. This lets us
+    /// evaluate constraints over a larger domain if desired. This can also be called with `FE = F`
+    /// and `D2 = 1`, in which case we are using the trivial extension, i.e. just evaluating
+    /// constraints over `F`.
+    fn eval_packed_generic<FE, P, const D2: usize>(
+        &self,
+        vars: StarkEvaluationVars<P>,
+        yield_constr: &mut ConstraintConsumer<P>,
+    ) where
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
+    {
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            yield_constr,
+            &mut (),
+        )
+    }
+
+    /// Evaluate constraints at a vector of points from the base field `F`.
+    #[inline]
+    fn eval_packed_base<P: PackedField<Scalar = F>>(
+        &self,
+        vars: StarkEvaluationVars<P>,
+        yield_constr: &mut ConstraintConsumer<P>,
+    ) {
+        self.eval_packed_generic(vars, yield_constr)
+    }
+
+    /// Evaluate constraints at a single point from the degree `D` extension field.
+    #[inline]
+    fn eval_ext(
+        &self,
+        vars: StarkEvaluationVars<F::Extension>,
+        yield_constr: &mut ConstraintConsumer<F::Extension>,
+    ) {
+        self.eval_packed_generic(vars, yield_constr)
+    }
+
+    /// Evaluate constraints at a vector of points from the degree `D` extension field. This is like
+    /// `eval_ext`, except in the context of a recursive circuit.
+    /// Note: constraints must be added through`yeld_constr.constraint(builder, constraint)` in the
+    /// same order as they are given in `eval_packed_generic`.
+    #[inline]
+    fn eval_ext_circuit(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        vars: StarkEvaluationTargets<D>,
+        yield_constr: &mut RecursiveConstraintConsumer<D>,
+    ) {
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            yield_constr,
+            builder,
+        )
     }
 }
 

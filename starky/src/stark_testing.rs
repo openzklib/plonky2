@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 use anyhow::{ensure, Result};
 use plonky2::field::extension::{Extendable, FieldExtension};
+use plonky2::field::packed::PackedField;
 use plonky2::field::polynomial::{PolynomialCoeffs, PolynomialValues};
 use plonky2::field::types::{Field, Sample};
 use plonky2::hash::hash_types::RichField;
@@ -49,6 +50,7 @@ pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const
                 public_inputs: &public_inputs,
             };
             let mut consumer = ConstraintConsumer::<F>::new(
+                F::ZEROS,
                 vec![alpha],
                 subgroup[i] - last,
                 lagrange_first.values[i],
@@ -99,6 +101,7 @@ pub fn test_stark_circuit_constraints<
     let lagrange_first = F::Extension::rand();
     let lagrange_last = F::Extension::rand();
     let mut consumer = ConstraintConsumer::<F::Extension>::new(
+        F::Extension::ZEROS,
         alphas
             .iter()
             .copied()
@@ -136,7 +139,7 @@ pub fn test_stark_circuit_constraints<
         next_values: &nexts_t,
         public_inputs: &pis_t,
     };
-    let mut consumer = RecursiveConstraintConsumer::<F, D>::new(
+    let mut consumer = RecursiveConstraintConsumer::<D>::new(
         builder.zero_extension(),
         alphas_t,
         z_last_t,

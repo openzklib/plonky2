@@ -259,6 +259,7 @@ where
             let lagrange_basis_last = *P::from_slice(&lagrange_last.values[i_range]);
 
             let mut consumer = ConstraintConsumer::new(
+                P::ZEROS,
                 alphas.clone(),
                 z_last,
                 lagrange_basis_first,
@@ -267,7 +268,10 @@ where
             let vars = StarkEvaluationVars {
                 local_values: &get_trace_values_packed(i_start),
                 next_values: &get_trace_values_packed(i_next_start),
-                public_inputs,
+                public_inputs: &public_inputs
+                    .iter()
+                    .map(|pi| (*pi).into())
+                    .collect::<Vec<_>>(),
             };
             let permutation_check_data = permutation_zs_commitment_challenges.as_ref().map(
                 |(permutation_zs_commitment, permutation_challenge_sets)| PermutationCheckVars {

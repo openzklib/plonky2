@@ -3,6 +3,7 @@ use core::iter::once;
 
 use anyhow::{anyhow, ensure, Result};
 use plonky2::field::extension::{Extendable, FieldExtension};
+use plonky2::field::packed::PackedField;
 use plonky2::field::types::Field;
 use plonky2::fri::verifier::verify_fri_proof;
 use plonky2::hash::hash_types::RichField;
@@ -71,6 +72,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
     let last = F::primitive_root_of_unity(degree_bits).inverse();
     let z_last = challenges.stark_zeta - last.into();
     let mut consumer = ConstraintConsumer::<F::Extension>::new(
+        F::Extension::ZEROS,
         challenges
             .stark_alphas
             .iter()

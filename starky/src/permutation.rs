@@ -49,17 +49,17 @@ pub(crate) struct PermutationInstance<'a, T: Copy> {
 
 /// Randomness for a single instance of a permutation check protocol.
 #[derive(Copy, Clone)]
-pub(crate) struct PermutationChallenge<T: Copy> {
+pub struct PermutationChallenge<T: Copy> {
     /// Randomness used to combine multiple columns into one.
-    pub(crate) beta: T,
+    pub beta: T,
     /// Random offset that's added to the beta-reduced column values.
-    pub(crate) gamma: T,
+    pub gamma: T,
 }
 
 /// Like `PermutationChallenge`, but with `num_challenges` copies to boost soundness.
 #[derive(Clone)]
-pub(crate) struct PermutationChallengeSet<T: Copy> {
-    pub(crate) challenges: Vec<PermutationChallenge<T>>,
+pub struct PermutationChallengeSet<T: Copy> {
+    pub challenges: Vec<PermutationChallenge<T>>,
 }
 
 /// Compute all Z polynomials (for permutation arguments).
@@ -249,22 +249,33 @@ pub(crate) fn get_permutation_batches<'a, T: Copy>(
         .collect()
 }
 
-pub struct PermutationCheckVars<F, FE, P, const D2: usize>
+///
+pub struct PermutationCheck<T, E>
 where
-    F: Field,
-    FE: FieldExtension<D2, BaseField = F>,
-    P: PackedField<Scalar = FE>,
+    T: Copy,
 {
-    pub(crate) local_zs: Vec<P>,
-    pub(crate) next_zs: Vec<P>,
-    pub(crate) permutation_challenge_sets: Vec<PermutationChallengeSet<F>>,
+    ///
+    pub local_zs: Vec<E>,
+
+    ///
+    pub next_zs: Vec<E>,
+
+    ///
+    pub permutation_challenge_sets: Vec<PermutationChallengeSet<T>>,
 }
+
+///
+pub type PermutationCheckVars<P, const D2: usize> =
+    PermutationCheck<<<P as PackedField>::Scalar as FieldExtension<D2>>::BaseField, P>;
+
+///
+pub type PermutationCheckDataTarget<const D: usize> = PermutationCheck<Target, ExtensionTarget<D>>;
 
 pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: usize>(
     stark: &S,
     config: &StarkConfig,
-    vars: StarkEvaluationVars<FE, P>,
-    permutation_data: PermutationCheckVars<F, FE, P, D2>,
+    vars: StarkEvaluationVars<P>,
+    permutation_data: PermutationCheckVars<P, D2>,
     consumer: &mut ConstraintConsumer<P>,
 ) where
     F: RichField + Extendable<D>,
@@ -281,7 +292,7 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
 
     // Check that Z(1) = 1;
     for &z in &local_zs {
-        consumer.constraint_first_row(z - FE::ONE);
+        consumer.constraint_first_row(z - FE::ONE, &mut ());
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -316,14 +327,8 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
             .unzip();
         let constraint = next_zs[i] * reduced_rhs.into_iter().product::<P>()
             - local_zs[i] * reduced_lhs.into_iter().product::<P>();
-        consumer.constraint(constraint);
+        consumer.constraint(constraint, &mut ());
     }
-}
-
-pub struct PermutationCheckDataTarget<const D: usize> {
-    pub(crate) local_zs: Vec<ExtensionTarget<D>>,
-    pub(crate) next_zs: Vec<ExtensionTarget<D>>,
-    pub(crate) permutation_challenge_sets: Vec<PermutationChallengeSet<Target>>,
 }
 
 pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
@@ -332,7 +337,7 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
     config: &StarkConfig,
     vars: StarkEvaluationTargets<D>,
     permutation_data: PermutationCheckDataTarget<D>,
-    consumer: &mut RecursiveConstraintConsumer<F, D>,
+    consumer: &mut RecursiveConstraintConsumer<D>,
 ) where
     F: RichField + Extendable<D>,
     S: Stark<F, D>,
@@ -347,7 +352,7 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
     // Check that Z(1) = 1;
     for &z in &local_zs {
         let z_1 = builder.sub_extension(z, one);
-        consumer.constraint_first_row(builder, z_1);
+        consumer.constraint_first_row(z_1, builder);
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -391,6 +396,6 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
             let tmp = builder.mul_extension(local_zs[i], reduced_lhs_product);
             builder.mul_sub_extension(next_zs[i], reduced_rhs_product, tmp)
         };
-        consumer.constraint(builder, constraint)
+        consumer.constraint(constraint, builder)
     }
 }

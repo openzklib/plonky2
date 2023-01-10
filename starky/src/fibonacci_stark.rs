@@ -2,17 +2,15 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use plonky2::field::extension::{Extendable, FieldExtension};
-use plonky2::field::packed::PackedField;
+use plonky2::field::extension::Extendable;
 use plonky2::field::polynomial::PolynomialValues;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::constraint_consumer::{self, Consumer};
 use crate::permutation::PermutationPair;
 use crate::stark::Stark;
 use crate::util::trace_rows_to_poly_values;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 /// Toy STARK system used for testing.
 /// Computes a Fibonacci sequence with state `[x0, x1, i, j]` using the state transition
@@ -66,63 +64,46 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         3
     }
 
-    fn eval_packed_generic<FE, P, const D2: usize>(
-        &self,
-        vars: StarkEvaluationVars<FE, P>,
-        yield_constr: &mut ConstraintConsumer<P>,
-    ) where
-        FE: FieldExtension<D2, BaseField = F>,
-        P: PackedField<Scalar = FE>,
-    {
-        // Check public inputs.
-        yield_constr
-            .constraint_first_row(vars.local_values[0] - vars.public_inputs[Self::PI_INDEX_X0]);
-        yield_constr
-            .constraint_first_row(vars.local_values[1] - vars.public_inputs[Self::PI_INDEX_X1]);
-        yield_constr
-            .constraint_last_row(vars.local_values[1] - vars.public_inputs[Self::PI_INDEX_RES]);
-
-        // x0' <- x1
-        yield_constr.constraint_transition(vars.next_values[0] - vars.local_values[1]);
-        // x1' <- x0 + x1
-        yield_constr.constraint_transition(
-            vars.next_values[1] - vars.local_values[0] - vars.local_values[1],
-        );
-    }
-
-    fn eval_ext_circuit(
-        &self,
-        builder: &mut CircuitBuilder<F, D>,
-        vars: StarkEvaluationTargets<D>,
-        yield_constr: &mut RecursiveConstraintConsumer<F, D>,
-    ) {
-        // Check public inputs.
-        let pis_constraints = [
-            builder.sub_extension(vars.local_values[0], vars.public_inputs[Self::PI_INDEX_X0]),
-            builder.sub_extension(vars.local_values[1], vars.public_inputs[Self::PI_INDEX_X1]),
-            builder.sub_extension(vars.local_values[1], vars.public_inputs[Self::PI_INDEX_RES]),
-        ];
-        yield_constr.constraint_first_row(builder, pis_constraints[0]);
-        yield_constr.constraint_first_row(builder, pis_constraints[1]);
-        yield_constr.constraint_last_row(builder, pis_constraints[2]);
-
-        // x0' <- x1
-        let first_col_constraint = builder.sub_extension(vars.next_values[0], vars.local_values[1]);
-        yield_constr.constraint_transition(builder, first_col_constraint);
-        // x1' <- x0 + x1
-        let second_col_constraint = {
-            let tmp = builder.sub_extension(vars.next_values[1], vars.local_values[0]);
-            builder.sub_extension(tmp, vars.local_values[1])
-        };
-        yield_constr.constraint_transition(builder, second_col_constraint);
-    }
-
     fn constraint_degree(&self) -> usize {
         2
     }
 
     fn permutation_pairs(&self) -> Vec<PermutationPair> {
         vec![PermutationPair::singletons(2, 3)]
+    }
+
+    #[inline]
+    fn eval<T, E, COM>(
+        &self,
+        local_values: &[E],
+        next_values: &[E],
+        public_inputs: &[E],
+        consumer: &mut Consumer<T, E>,
+        compiler: &mut COM,
+    ) where
+        E: Clone,
+        COM: constraint_consumer::Mul<E>
+            + constraint_consumer::ScalarMulAdd<T, E>
+            + constraint_consumer::Sub<E>,
+    {
+        let pis_constraints = [
+            compiler.sub(&local_values[0], &public_inputs[Self::PI_INDEX_X0]),
+            compiler.sub(&local_values[1], &public_inputs[Self::PI_INDEX_X1]),
+            compiler.sub(&local_values[1], &public_inputs[Self::PI_INDEX_RES]),
+        ];
+        consumer.constraint_first_row(pis_constraints[0].clone(), compiler);
+        consumer.constraint_first_row(pis_constraints[1].clone(), compiler);
+        consumer.constraint_last_row(pis_constraints[2].clone(), compiler);
+
+        // x0' <- x1
+        let first_col_constraint = compiler.sub(&next_values[0], &local_values[1]);
+        consumer.constraint_transition(first_col_constraint, compiler);
+        // x1' <- x0 + x1
+        let second_col_constraint = {
+            let tmp = compiler.sub(&next_values[1], &local_values[0]);
+            compiler.sub(&tmp, &local_values[1])
+        };
+        consumer.constraint_transition(second_col_constraint, compiler);
     }
 }
 

@@ -105,7 +105,7 @@ fn verify_stark_proof_with_challenges_circuit<
         builder.constant_extension(F::Extension::primitive_root_of_unity(degree_bits).inverse());
     let z_last = builder.sub_extension(challenges.stark_zeta, last);
 
-    let mut consumer = RecursiveConstraintConsumer::<F, D>::new(
+    let mut consumer = RecursiveConstraintConsumer::<D>::new(
         builder.zero_extension(),
         challenges.stark_alphas,
         z_last,

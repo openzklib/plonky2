@@ -5,19 +5,51 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::config::GenericConfig;
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
 use crate::permutation::{
-    eval_permutation_checks, eval_permutation_checks_circuit, PermutationCheckDataTarget,
-    PermutationCheckVars,
+    eval_permutation_checks, eval_permutation_checks_circuit, PermutationCheck,
+    PermutationCheckDataTarget, PermutationCheckVars,
 };
 use crate::stark::Stark;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
+use crate::vars::{StarkEvaluation, StarkEvaluationTargets, StarkEvaluationVars};
+
+/* TODO:
+///
+pub fn eval_vanishing_poly_2<F, C, S, T, E, COM, const D: usize>(
+    stark: &S,
+    config: &StarkConfig,
+    vars: StarkEvaluation<E>,
+    permutation_data: Option<PermutationCheck<T, E>>,
+    consumer: &mut Consumer<T, E>,
+    compiler: &mut COM,
+) where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    S: Stark<F, D>,
+    T: Copy,
+    E: Clone,
+    COM: constraint_consumer::Mul<E>
+        + constraint_consumer::ScalarMulAdd<T, E>
+        + constraint_consumer::Sub<E>,
+{
+    stark.eval(
+        vars.local_values,
+        vars.next_values,
+        vars.public_inputs,
+        consumer,
+        compiler,
+    );
+    if let Some(permutation_data) = permutation_data {
+        todo!()
+    }
+}
+*/
 
 pub(crate) fn eval_vanishing_poly<F, FE, P, C, S, const D: usize, const D2: usize>(
     stark: &S,
     config: &StarkConfig,
-    vars: StarkEvaluationVars<FE, P>,
-    permutation_data: Option<PermutationCheckVars<F, FE, P, D2>>,
+    vars: StarkEvaluationVars<P>,
+    permutation_data: Option<PermutationCheckVars<P, D2>>,
     consumer: &mut ConstraintConsumer<P>,
 ) where
     F: RichField + Extendable<D>,
@@ -44,7 +76,7 @@ pub(crate) fn eval_vanishing_poly_circuit<F, C, S, const D: usize>(
     config: &StarkConfig,
     vars: StarkEvaluationTargets<D>,
     permutation_data: Option<PermutationCheckDataTarget<D>>,
-    consumer: &mut RecursiveConstraintConsumer<F, D>,
+    consumer: &mut RecursiveConstraintConsumer<D>,
 ) where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
