@@ -12,13 +12,33 @@ use plonky2::iop::ext_target::ExtensionTarget;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::ceil_div_usize;
 
+use crate::arithmetic::Arithmetic;
 use crate::config::StarkConfig;
 use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
 use crate::permutation::PermutationPair;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
-/// Represents a STARK system.
-pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
+/// Consumer Evaluation
+pub trait Eval<T, E, COM = ()>
+where
+    T: Clone,
+    E: Clone,
+    COM: Arithmetic<T, E>,
+{
+    ///
+    fn eval(
+        &self,
+        local_values: &[E],
+        next_values: &[E],
+        public_inputs: &[E],
+        consumer: &mut Consumer<T, E>,
+        compiler: &mut COM,
+    );
+}
+
+/*
+///
+pub trait StarkConfiguration {
     /// Returns the total number of columns in the trace.
     fn columns(&self) -> usize;
 
@@ -26,6 +46,39 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
     fn public_inputs(&self) -> usize;
 
     /// The maximum constraint degree.
+    fn constraint_degree(&self) -> usize;
+
+    /// Pairs of lists of columns that should be permutations of one another. A permutation argument
+    /// will be used for each such pair. Empty by default.
+    #[inline]
+    fn permutation_pairs(&self) -> Vec<PermutationPair> {
+        vec![]
+    }
+
+    ///
+    #[inline]
+    fn metadata(&self) -> StarkMetadata {
+        StarkMetadata {
+            constraint_degree: self.constraint_degree(),
+            columns: self.columns(),
+            public_inputs: self.public_inputs(),
+            permutation_pairs: self.permutation_pairs().len(),
+        }
+    }
+}
+*/
+
+/// Represents a STARK system.
+pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
+    /// Returns the total number of columns in the trace.
+    fn columns(&self) -> usize;
+
+    /// Returns the number of public inputs.
+    fn public_inputs(&self) -> usize;
+
+    /// The maximum constraint degree.
+    ///
+    /// This value can be no more than `2^rate_bits + 1` where `rate_bits` is from [`FriConfig`].
     fn constraint_degree(&self) -> usize;
 
     /// Pairs of lists of columns that should be permutations of one another. A permutation argument
@@ -55,10 +108,9 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
         consumer: &mut Consumer<T, E>,
         compiler: &mut COM,
     ) where
-        E: Clone,
-        COM: constraint_consumer::Mul<E>
-            + constraint_consumer::ScalarMulAdd<T, E>
-            + constraint_consumer::Sub<E>;
+        T: Copy,
+        E: Copy,
+        COM: Arithmetic<T, E>;
 
     /// Evaluate constraints at a vector of points.
     ///

@@ -38,7 +38,7 @@ pub fn prove<F, C, S, const D: usize>(
 where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, D> + Sync,
 {
     let degree = trace_poly_values[0].len();
     let degree_bits = log2_strict(degree);
@@ -210,7 +210,7 @@ where
     F: RichField + Extendable<D>,
     P: PackedField<Scalar = F>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, D> + Sync,
 {
     let degree = 1 << degree_bits;
     let rate_bits = config.fri_config.rate_bits;

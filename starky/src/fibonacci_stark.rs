@@ -7,6 +7,7 @@ use plonky2::field::polynomial::PolynomialValues;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
+use crate::arithmetic::Arithmetic;
 use crate::constraint_consumer::{self, Consumer};
 use crate::permutation::PermutationPair;
 use crate::stark::Stark;
@@ -81,27 +82,26 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         consumer: &mut Consumer<T, E>,
         compiler: &mut COM,
     ) where
-        E: Clone,
-        COM: constraint_consumer::Mul<E>
-            + constraint_consumer::ScalarMulAdd<T, E>
-            + constraint_consumer::Sub<E>,
+        T: Copy,
+        E: Copy,
+        COM: Arithmetic<T, E>,
     {
         let pis_constraints = [
-            compiler.sub(&local_values[0], &public_inputs[Self::PI_INDEX_X0]),
-            compiler.sub(&local_values[1], &public_inputs[Self::PI_INDEX_X1]),
-            compiler.sub(&local_values[1], &public_inputs[Self::PI_INDEX_RES]),
+            compiler.sub(local_values[0], public_inputs[Self::PI_INDEX_X0]),
+            compiler.sub(local_values[1], public_inputs[Self::PI_INDEX_X1]),
+            compiler.sub(local_values[1], public_inputs[Self::PI_INDEX_RES]),
         ];
-        consumer.constraint_first_row(pis_constraints[0].clone(), compiler);
-        consumer.constraint_first_row(pis_constraints[1].clone(), compiler);
-        consumer.constraint_last_row(pis_constraints[2].clone(), compiler);
+        consumer.constraint_first_row(pis_constraints[0], compiler);
+        consumer.constraint_first_row(pis_constraints[1], compiler);
+        consumer.constraint_last_row(pis_constraints[2], compiler);
 
         // x0' <- x1
-        let first_col_constraint = compiler.sub(&next_values[0], &local_values[1]);
+        let first_col_constraint = compiler.sub(next_values[0], local_values[1]);
         consumer.constraint_transition(first_col_constraint, compiler);
         // x1' <- x0 + x1
         let second_col_constraint = {
-            let tmp = compiler.sub(&next_values[1], &local_values[0]);
-            compiler.sub(&tmp, &local_values[1])
+            let tmp = compiler.sub(next_values[1], local_values[0]);
+            compiler.sub(tmp, local_values[1])
         };
         consumer.constraint_transition(second_col_constraint, compiler);
     }
