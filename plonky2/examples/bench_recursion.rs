@@ -176,27 +176,30 @@ fn benchmark(config: &CircuitConfig, log2_inner_size: usize) -> Result<()> {
     let inner = dummy_proof::<F, C, D>(config, log2_inner_size)?;
     let (_, _, cd) = &inner;
     info!(
-        "Initial proof degree {} = 2^{}",
+        "Initial proof degree {} = 2^{}\n\n{:#?}\n",
         cd.degree(),
-        cd.degree_bits()
+        cd.degree_bits(),
+        cd,
     );
 
     // Recursively verify the proof
     let middle = recursive_proof::<F, C, C, D>(&inner, config, None)?;
     let (_, _, cd) = &middle;
     info!(
-        "Single recursion proof degree {} = 2^{}",
+        "Single recursion proof degree {} = 2^{}\n\n{:#?}\n",
         cd.degree(),
-        cd.degree_bits()
+        cd.degree_bits(),
+        cd,
     );
 
     // Add a second layer of recursion to shrink the proof size further
     let outer = recursive_proof::<F, C, C, D>(&middle, config, None)?;
     let (proof, vd, cd) = &outer;
     info!(
-        "Double recursion proof degree {} = 2^{}",
+        "Double recursion proof degree {} = 2^{}\n\n{:#?}\n",
         cd.degree(),
-        cd.degree_bits()
+        cd.degree_bits(),
+        cd,
     );
 
     test_serialization(proof, vd, cd)?;
