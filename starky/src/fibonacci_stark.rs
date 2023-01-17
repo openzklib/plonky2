@@ -109,40 +109,12 @@ where
 
 impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark {
     #[inline]
-    fn eval_packed_generic<FE, P, const D2: usize>(
-        &self,
-        vars: StarkEvaluationVars<P>,
-        yield_constr: &mut ConstraintConsumer<P>,
-    ) where
-        FE: FieldExtension<D2, BaseField = F>,
-        P: PackedField<Scalar = FE>,
+    fn eval<T, COM>(&self, curr: &[T], next: &[T], public_inputs: &[T], compiler: &mut COM)
+    where
+        T: Copy,
+        COM: Compiler<T>,
     {
-        /* TODO:
-        self.eval(
-            vars.local_values,
-            vars.next_values,
-            vars.public_inputs,
-            ConstraintCompiler(yield_constr),
-        );
-        */
-        todo!()
-    }
-
-    #[inline]
-    fn eval_ext_circuit(
-        &self,
-        builder: &mut CircuitBuilder<F, D>,
-        vars: StarkEvaluationTargets<D>,
-        yield_constr: &mut RecursiveConstraintConsumer<D>,
-    ) {
-        /* TODO:
-        self.eval(
-            vars.local_values,
-            vars.next_values,
-            vars.public_inputs,
-            RecursiveConstraintCompiler::new(yield_constr, builder),
-        );
-        */
+        Eval::eval(self, curr, next, public_inputs, compiler)
     }
 }
 
