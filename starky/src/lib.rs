@@ -7,6 +7,7 @@ mod get_challenges;
 pub mod arithmetic;
 pub mod config;
 pub mod constraint_consumer;
+pub mod ir;
 pub mod permutation;
 pub mod proof;
 pub mod prover;
