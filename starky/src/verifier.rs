@@ -97,7 +97,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
         permutation_data,
         &mut consumer,
     );
-    let vanishing_polys_zeta = consumer.accumulators();
+    let vanishing_polys_zeta = consumer.into_accumulators();
 
     // Check each polynomial identity, of the form `vanishing(x) = Z_H(x) quotient(x)`, at zeta.
     let zeta_pow_deg = challenges.stark_zeta.exp_power_of_2(degree_bits);

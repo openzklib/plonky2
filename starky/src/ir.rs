@@ -16,18 +16,6 @@ pub trait Constraint<F> {
     }
 }
 
-/// All Rows Filter
-pub struct All;
-
-/// Transition Filter
-pub struct Transition;
-
-/// First Row Filter
-pub struct FirstRow;
-
-/// Last Row Filter
-pub struct LastRow;
-
 /// Constraint Filtered
 pub trait ConstraintFiltered<F, Filter> {
     /// Asserts that `value == 0` whenever the `filter` is true.
@@ -45,13 +33,16 @@ pub trait ConstraintFiltered<F, Filter> {
     }
 }
 
+/// All Rows Filter
+pub struct All;
+
 impl<F, C> ConstraintFiltered<F, All> for C
 where
     C: Constraint<F>,
 {
     #[inline]
     fn assert_zero_when(&mut self, _: All, value: F) {
-        self.assert_zero(value)
+        self.assert_zero(value);
     }
 
     #[inline]
@@ -59,9 +50,32 @@ where
     where
         Self: Sub<F>,
     {
-        self.assert_eq(lhs, rhs)
+        self.assert_eq(lhs, rhs);
     }
 }
+
+/// Product Filter
+pub struct Product<F>(pub F);
+
+impl<F, C> ConstraintFiltered<F, Product<F>> for C
+where
+    C: Constraint<F> + Mul<F>,
+{
+    #[inline]
+    fn assert_zero_when(&mut self, filter: Product<F>, value: F) {
+        let filtered_value = self.mul(value, filter.0);
+        self.assert_zero(filtered_value);
+    }
+}
+
+/// Transition Filter
+pub struct Transition;
+
+/// First Row Filter
+pub struct FirstRow;
+
+/// Last Row Filter
+pub struct LastRow;
 
 /// Zero
 pub trait Zero<F> {
@@ -85,6 +99,12 @@ pub trait Add<F> {
             .reduce(|lhs, rhs| self.add(lhs, rhs))
             .unwrap_or_else(|| self.zero())
     }
+}
+
+/// Negation
+pub trait Neg<F> {
+    /// Returns the negation of `value`.
+    fn neg(&mut self, value: F) -> F;
 }
 
 /// Subtraction
@@ -126,29 +146,36 @@ pub trait Compiler<F>:
     + Add<F>
     + Mul<F>
     + Sub<F>
+    + Sized
 {
     ///
     #[inline]
+    fn assert_zero_product(&mut self, lhs: F, rhs: F) {
+        self.assert_zero_when(Product(lhs), rhs);
+    }
+
+    ///
+    #[inline]
     fn assert_zero_transition(&mut self, value: F) {
-        self.assert_zero_when(Transition, value)
+        self.assert_zero_when(Transition, value);
     }
 
     ///
     #[inline]
     fn assert_eq_transition(&mut self, lhs: F, rhs: F) {
-        self.assert_eq_when(Transition, lhs, rhs)
+        self.assert_eq_when(Transition, lhs, rhs);
     }
 
     ///
     #[inline]
     fn assert_zero_first_row(&mut self, value: F) {
-        self.assert_zero_when(FirstRow, value)
+        self.assert_zero_when(FirstRow, value);
     }
 
     ///
     #[inline]
     fn assert_eq_first_row(&mut self, lhs: F, rhs: F) {
-        self.assert_eq_when(FirstRow, lhs, rhs)
+        self.assert_eq_when(FirstRow, lhs, rhs);
     }
 
     ///
@@ -160,7 +187,7 @@ pub trait Compiler<F>:
     ///
     #[inline]
     fn assert_eq_last_row(&mut self, lhs: F, rhs: F) {
-        self.assert_eq_when(LastRow, lhs, rhs)
+        self.assert_eq_when(LastRow, lhs, rhs);
     }
 }
 
@@ -188,45 +215,4 @@ where
 {
     /// Evaluates a STARK over `curr`, `next`, `public_inputs` using `compiler`.
     fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], compiler: &mut COM);
-}
-
-/// Fibonacci Example STARK
-pub mod fibonacci {
-    use super::*;
-
-    /// Fibonacci STARK
-    pub struct FibonacciStark;
-
-    impl FibonacciStark {
-        /// The first public input is `x0`.
-        pub const FIRST_TERM: usize = 0;
-
-        /// The second public input is `x1`.
-        pub const SECOND_TERM: usize = 1;
-
-        /// The third public input is the second element of the last row, which should be equal to the
-        /// `num_rows`-th Fibonacci number.
-        pub const FINAL_TERM: usize = 2;
-    }
-
-    impl<F, COM> Eval<F, COM> for FibonacciStark
-    where
-        F: Copy,
-        COM: Compiler<F>,
-    {
-        #[inline]
-        fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], compiler: &mut COM) {
-            // Constrain Public Inputs
-            compiler.assert_eq_first_row(public_inputs[Self::FIRST_TERM], curr[0]);
-            compiler.assert_eq_first_row(public_inputs[Self::SECOND_TERM], curr[1]);
-            compiler.assert_eq_last_row(public_inputs[Self::FINAL_TERM], curr[1]);
-
-            // Add Fibonacci Terms
-            let sum = compiler.add(curr[0], curr[1]);
-
-            // Constrain Transition
-            compiler.assert_eq_transition(next[0], curr[1]);
-            compiler.assert_eq_transition(next[1], sum);
-        }
-    }
 }

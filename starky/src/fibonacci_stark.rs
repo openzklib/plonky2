@@ -1,46 +1,56 @@
+//! Fibonacci STARK
+
 use alloc::vec;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
-use plonky2::field::extension::Extendable;
+use plonky2::field::extension::{Extendable, FieldExtension};
+use plonky2::field::packed::PackedField;
 use plonky2::field::polynomial::PolynomialValues;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::arithmetic::Arithmetic;
-use crate::constraint_consumer::{self, Consumer};
+use crate::constraint_consumer::{
+    self, ConstraintCompiler, ConstraintConsumer, Consumer, RecursiveConstraintConsumer,
+};
+use crate::ir::{Compiler, Eval};
 use crate::permutation::PermutationPair;
 use crate::stark::Stark;
 use crate::util::trace_rows_to_poly_values;
+use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 /// Toy STARK system used for testing.
+///
 /// Computes a Fibonacci sequence with state `[x0, x1, i, j]` using the state transition
 /// `x0' <- x1, x1' <- x0 + x1, i' <- i+1, j' <- j+1`.
 /// Note: The `i, j` columns are only used to test the permutation argument.
 #[derive(Copy, Clone)]
-struct FibonacciStark<F: RichField + Extendable<D>, const D: usize> {
-    num_rows: usize,
-    _phantom: PhantomData<F>,
+pub struct FibonacciStark {
+    pub num_rows: usize,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> FibonacciStark<F, D> {
-    // The first public input is `x0`.
-    const PI_INDEX_X0: usize = 0;
-    // The second public input is `x1`.
-    const PI_INDEX_X1: usize = 1;
-    // The third public input is the second element of the last row, which should be equal to the
-    // `num_rows`-th Fibonacci number.
-    const PI_INDEX_RES: usize = 2;
+impl FibonacciStark {
+    /// The first public input is `x0`.
+    pub const PI_INDEX_X0: usize = 0;
 
-    fn new(num_rows: usize) -> Self {
-        Self {
-            num_rows,
-            _phantom: PhantomData,
-        }
+    /// The second public input is `x1`.
+    pub const PI_INDEX_X1: usize = 1;
+
+    /// The third public input is the second element of the last row, which should be equal to the
+    /// `num_rows`-th Fibonacci number.
+    pub const PI_INDEX_RES: usize = 2;
+
+    /// Builds a new [`FibonacciStark`].
+    #[inline]
+    pub fn new(num_rows: usize) -> Self {
+        Self { num_rows }
     }
 
     /// Generate the trace using `x0, x1, 0, 1` as initial state values.
-    fn generate_trace(&self, x0: F, x1: F) -> Vec<PolynomialValues<F>> {
+    fn generate_trace<F>(&self, x0: F, x1: F) -> Vec<PolynomialValues<F>>
+    where
+        F: RichField,
+    {
         let mut trace_rows = (0..self.num_rows)
             .scan([x0, x1, F::ZERO, F::ONE], |acc, _| {
                 let tmp = *acc;
@@ -56,7 +66,28 @@ impl<F: RichField + Extendable<D>, const D: usize> FibonacciStark<F, D> {
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark<F, D> {
+impl<F, COM> Eval<F, COM> for FibonacciStark
+where
+    F: Copy,
+    COM: Compiler<F>,
+{
+    #[inline]
+    fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], compiler: &mut COM) {
+        // Constrain Public Inputs
+        compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X0], curr[0]);
+        compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X1], curr[1]);
+        compiler.assert_eq_last_row(public_inputs[Self::PI_INDEX_RES], curr[1]);
+
+        // Add Fibonacci Terms
+        let sum = compiler.add(curr[0], curr[1]);
+
+        // Constrain Transition
+        compiler.assert_eq_transition(next[0], curr[1]);
+        compiler.assert_eq_transition(next[1], sum);
+    }
+}
+
+impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark {
     fn columns(&self) -> usize {
         4
     }
@@ -74,36 +105,40 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
     }
 
     #[inline]
-    fn eval<T, E, COM>(
+    fn eval_packed_generic<FE, P, const D2: usize>(
         &self,
-        local_values: &[E],
-        next_values: &[E],
-        public_inputs: &[E],
-        consumer: &mut Consumer<T, E>,
-        compiler: &mut COM,
+        vars: StarkEvaluationVars<P>,
+        yield_constr: &mut ConstraintConsumer<P>,
     ) where
-        T: Copy,
-        E: Copy,
-        COM: Arithmetic<T, E>,
+        FE: FieldExtension<D2, BaseField = F>,
+        P: PackedField<Scalar = FE>,
     {
-        let pis_constraints = [
-            compiler.sub(local_values[0], public_inputs[Self::PI_INDEX_X0]),
-            compiler.sub(local_values[1], public_inputs[Self::PI_INDEX_X1]),
-            compiler.sub(local_values[1], public_inputs[Self::PI_INDEX_RES]),
-        ];
-        consumer.constraint_first_row(pis_constraints[0], compiler);
-        consumer.constraint_first_row(pis_constraints[1], compiler);
-        consumer.constraint_last_row(pis_constraints[2], compiler);
+        /* TODO:
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            ConstraintCompiler(yield_constr),
+        );
+        */
+        todo!()
+    }
 
-        // x0' <- x1
-        let first_col_constraint = compiler.sub(next_values[0], local_values[1]);
-        consumer.constraint_transition(first_col_constraint, compiler);
-        // x1' <- x0 + x1
-        let second_col_constraint = {
-            let tmp = compiler.sub(next_values[1], local_values[0]);
-            compiler.sub(tmp, local_values[1])
-        };
-        consumer.constraint_transition(second_col_constraint, compiler);
+    #[inline]
+    fn eval_ext_circuit(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        vars: StarkEvaluationTargets<D>,
+        yield_constr: &mut RecursiveConstraintConsumer<D>,
+    ) {
+        /* TODO:
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            RecursiveConstraintCompiler::new(yield_constr, builder),
+        );
+        */
     }
 }
 
@@ -136,7 +171,7 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = FibonacciStark<F, D>;
+        type S = FibonacciStark;
 
         let config = StarkConfig::standard_fast_config();
         let num_rows = 1 << 5;
@@ -159,15 +194,12 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = FibonacciStark<F, D>;
+        type S = FibonacciStark;
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
-        test_stark_low_degree(
-            stark,
-            stark.metadata().columns,
-            stark.metadata().public_inputs,
-        )
+        let metadata = Stark::<F, D>::metadata(&stark);
+        test_stark_low_degree::<F, _, D>(stark, metadata.columns, metadata.public_inputs)
     }
 
     #[test]
@@ -175,14 +207,15 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = FibonacciStark<F, D>;
+        type S = FibonacciStark;
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
+        let metadata = Stark::<F, D>::metadata(&stark);
         test_stark_circuit_constraints::<F, C, S, D>(
             stark,
-            stark.metadata().columns,
-            stark.metadata().public_inputs,
+            metadata.columns,
+            metadata.public_inputs,
         )
     }
 
@@ -192,7 +225,7 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = FibonacciStark<F, D>;
+        type S = FibonacciStark;
 
         let config = StarkConfig::standard_fast_config();
         let num_rows = 1 << 5;

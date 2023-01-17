@@ -288,7 +288,7 @@ where
                 &mut consumer,
             );
 
-            let mut constraints_evals = consumer.accumulators();
+            let mut constraints_evals = consumer.into_accumulators();
             // We divide the constraints evaluations by `Z_H(x)`.
             let denominator_inv: P = z_h_on_coset.eval_inverse_packed(i_start);
 

@@ -135,7 +135,7 @@ fn verify_stark_proof_with_challenges_circuit<
             &mut consumer,
         )
     );
-    let vanishing_polys_zeta = consumer.accumulators();
+    let vanishing_polys_zeta = consumer.into_accumulators();
 
     // Check each polynomial identity, of the form `vanishing(x) = Z_H(x) quotient(x)`, at zeta.
     let mut scale = ReducingFactorTarget::new(zeta_pow_deg);

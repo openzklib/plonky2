@@ -12,29 +12,10 @@ use plonky2::iop::ext_target::ExtensionTarget;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::ceil_div_usize;
 
-use crate::arithmetic::Arithmetic;
 use crate::config::StarkConfig;
 use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
 use crate::permutation::PermutationPair;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
-
-/// Consumer Evaluation
-pub trait Eval<T, E, COM = ()>
-where
-    T: Clone,
-    E: Clone,
-    COM: Arithmetic<T, E>,
-{
-    ///
-    fn eval(
-        &self,
-        local_values: &[E],
-        next_values: &[E],
-        public_inputs: &[E],
-        consumer: &mut Consumer<T, E>,
-        compiler: &mut COM,
-    );
-}
 
 /*
 ///
@@ -99,19 +80,6 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
         }
     }
 
-    ///
-    fn eval<T, E, COM>(
-        &self,
-        local_values: &[E],
-        next_values: &[E],
-        public_inputs: &[E],
-        consumer: &mut Consumer<T, E>,
-        compiler: &mut COM,
-    ) where
-        T: Copy,
-        E: Copy,
-        COM: Arithmetic<T, E>;
-
     /// Evaluate constraints at a vector of points.
     ///
     /// The points are elements of a field `FE`, a degree `D2` extension of `F`. This lets us
@@ -124,16 +92,7 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
         yield_constr: &mut ConstraintConsumer<P>,
     ) where
         FE: FieldExtension<D2, BaseField = F>,
-        P: PackedField<Scalar = FE>,
-    {
-        self.eval(
-            vars.local_values,
-            vars.next_values,
-            vars.public_inputs,
-            yield_constr,
-            &mut (),
-        )
-    }
+        P: PackedField<Scalar = FE>;
 
     /// Evaluate constraints at a vector of points from the base field `F`.
     #[inline]
@@ -159,21 +118,12 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
     /// `eval_ext`, except in the context of a recursive circuit.
     /// Note: constraints must be added through`yeld_constr.constraint(builder, constraint)` in the
     /// same order as they are given in `eval_packed_generic`.
-    #[inline]
     fn eval_ext_circuit(
         &self,
         builder: &mut CircuitBuilder<F, D>,
         vars: StarkEvaluationTargets<D>,
         yield_constr: &mut RecursiveConstraintConsumer<D>,
-    ) {
-        self.eval(
-            vars.local_values,
-            vars.next_values,
-            vars.public_inputs,
-            yield_constr,
-            builder,
-        )
-    }
+    );
 }
 
 /// STARK Metadata
