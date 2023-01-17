@@ -13,12 +13,14 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::ceil_div_usize;
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
+use crate::constraint_consumer::{
+    self, ConstraintCompiler, ConstraintConsumer, Consumer, RecursiveConstraintConsumer,
+};
+use crate::ir::Compiler;
 use crate::permutation::PermutationPair;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
-/*
-///
+/// STARK Configuration
 pub trait StarkConfiguration {
     /// Returns the total number of columns in the trace.
     fn columns(&self) -> usize;
@@ -36,7 +38,7 @@ pub trait StarkConfiguration {
         vec![]
     }
 
-    ///
+    /// Returns the [`StarkMetadata`] structure over `self`.
     #[inline]
     fn metadata(&self) -> StarkMetadata {
         StarkMetadata {
@@ -47,38 +49,14 @@ pub trait StarkConfiguration {
         }
     }
 }
-*/
 
 /// Represents a STARK system.
-pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
-    /// Returns the total number of columns in the trace.
-    fn columns(&self) -> usize;
-
-    /// Returns the number of public inputs.
-    fn public_inputs(&self) -> usize;
-
-    /// The maximum constraint degree.
+pub trait Stark<F: RichField + Extendable<D>, const D: usize>: StarkConfiguration {
     ///
-    /// This value can be no more than `2^rate_bits + 1` where `rate_bits` is from [`FriConfig`].
-    fn constraint_degree(&self) -> usize;
-
-    /// Pairs of lists of columns that should be permutations of one another. A permutation argument
-    /// will be used for each such pair. Empty by default.
-    #[inline]
-    fn permutation_pairs(&self) -> Vec<PermutationPair> {
-        vec![]
-    }
-
-    ///
-    #[inline]
-    fn metadata(&self) -> StarkMetadata {
-        StarkMetadata {
-            constraint_degree: self.constraint_degree(),
-            columns: self.columns(),
-            public_inputs: self.public_inputs(),
-            permutation_pairs: self.permutation_pairs().len(),
-        }
-    }
+    fn eval<T, COM>(&self, curr: &[T], next: &[T], public_inputs: &[T], compiler: &mut COM)
+    where
+        T: Copy,
+        COM: Compiler<T>;
 
     /// Evaluate constraints at a vector of points.
     ///
@@ -92,7 +70,15 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
         yield_constr: &mut ConstraintConsumer<P>,
     ) where
         FE: FieldExtension<D2, BaseField = F>,
-        P: PackedField<Scalar = FE>;
+        P: PackedField<Scalar = FE>,
+    {
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            &mut ConstraintCompiler::new(yield_constr, &mut ()),
+        )
+    }
 
     /// Evaluate constraints at a vector of points from the base field `F`.
     #[inline]
@@ -123,21 +109,28 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize> {
         builder: &mut CircuitBuilder<F, D>,
         vars: StarkEvaluationTargets<D>,
         yield_constr: &mut RecursiveConstraintConsumer<D>,
-    );
+    ) {
+        self.eval(
+            vars.local_values,
+            vars.next_values,
+            vars.public_inputs,
+            &mut ConstraintCompiler::new(yield_constr, builder),
+        )
+    }
 }
 
 /// STARK Metadata
 pub struct StarkMetadata {
-    ///
+    /// Constraint Degree
     pub constraint_degree: usize,
 
-    ///
+    /// Number of Columns
     pub columns: usize,
 
-    ///
+    /// Number of Public Inputs
     pub public_inputs: usize,
 
-    ///
+    /// Number of Permutation Pairs
     pub permutation_pairs: usize,
 }
 

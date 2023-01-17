@@ -16,7 +16,7 @@ use crate::permutation::{
     get_n_permutation_challenge_sets, get_n_permutation_challenge_sets_target,
 };
 use crate::proof::*;
-use crate::stark::Stark;
+use crate::stark::StarkConfiguration;
 
 #[allow(clippy::too_many_arguments)] // NOTE: Clippy is too harsh here.
 fn get_challenges<F, C, S, const D: usize>(
@@ -34,7 +34,7 @@ fn get_challenges<F, C, S, const D: usize>(
 where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: StarkConfiguration,
 {
     let num_challenges = config.num_challenges;
 
@@ -80,24 +80,30 @@ where
 {
     // TODO: Should be used later in compression?
     #![allow(dead_code)]
-    pub(crate) fn fri_query_indices<S: Stark<F, D>>(
+    pub(crate) fn fri_query_indices<S>(
         &self,
         stark: &S,
         config: &StarkConfig,
         degree_bits: usize,
-    ) -> Vec<usize> {
+    ) -> Vec<usize>
+    where
+        S: StarkConfiguration,
+    {
         self.get_challenges(stark, config, degree_bits)
             .fri_challenges
             .fri_query_indices
     }
 
     /// Computes all Fiat-Shamir challenges used in the STARK proof.
-    pub(crate) fn get_challenges<S: Stark<F, D>>(
+    pub(crate) fn get_challenges<S>(
         &self,
         stark: &S,
         config: &StarkConfig,
         degree_bits: usize,
-    ) -> StarkProofChallenges<F, D> {
+    ) -> StarkProofChallenges<F, D>
+    where
+        S: StarkConfiguration,
+    {
         let StarkProof {
             trace_cap,
             permutation_zs_cap,
@@ -111,7 +117,6 @@ where
                     ..
                 },
         } = &self.proof;
-
         get_challenges::<F, C, S, D>(
             stark,
             trace_cap,
@@ -131,7 +136,7 @@ where
 pub(crate) fn get_challenges_target<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: StarkConfiguration,
     const D: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
@@ -190,7 +195,7 @@ impl<const D: usize> StarkProofWithPublicInputsTarget<D> {
     pub(crate) fn get_challenges<
         F: RichField + Extendable<D>,
         C: GenericConfig<D, F = F>,
-        S: Stark<F, D>,
+        S: StarkConfiguration,
     >(
         &self,
         builder: &mut CircuitBuilder<F, D>,

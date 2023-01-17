@@ -10,12 +10,10 @@ use plonky2::field::polynomial::PolynomialValues;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::constraint_consumer::{
-    self, ConstraintCompiler, ConstraintConsumer, Consumer, RecursiveConstraintConsumer,
-};
+use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
 use crate::ir::{Compiler, Eval};
 use crate::permutation::PermutationPair;
-use crate::stark::Stark;
+use crate::stark::{Stark, StarkConfiguration};
 use crate::util::trace_rows_to_poly_values;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
@@ -66,6 +64,28 @@ impl FibonacciStark {
     }
 }
 
+impl StarkConfiguration for FibonacciStark {
+    #[inline]
+    fn columns(&self) -> usize {
+        4
+    }
+
+    #[inline]
+    fn public_inputs(&self) -> usize {
+        3
+    }
+
+    #[inline]
+    fn constraint_degree(&self) -> usize {
+        2
+    }
+
+    #[inline]
+    fn permutation_pairs(&self) -> Vec<PermutationPair> {
+        vec![PermutationPair::singletons(2, 3)]
+    }
+}
+
 impl<F, COM> Eval<F, COM> for FibonacciStark
 where
     F: Copy,
@@ -88,22 +108,6 @@ where
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark {
-    fn columns(&self) -> usize {
-        4
-    }
-
-    fn public_inputs(&self) -> usize {
-        3
-    }
-
-    fn constraint_degree(&self) -> usize {
-        2
-    }
-
-    fn permutation_pairs(&self) -> Vec<PermutationPair> {
-        vec![PermutationPair::singletons(2, 3)]
-    }
-
     #[inline]
     fn eval_packed_generic<FE, P, const D2: usize>(
         &self,
@@ -198,7 +202,7 @@ mod tests {
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
-        let metadata = Stark::<F, D>::metadata(&stark);
+        let metadata = stark.metadata();
         test_stark_low_degree::<F, _, D>(stark, metadata.columns, metadata.public_inputs)
     }
 
@@ -211,7 +215,7 @@ mod tests {
 
         let num_rows = 1 << 5;
         let stark = S::new(num_rows);
-        let metadata = Stark::<F, D>::metadata(&stark);
+        let metadata = stark.metadata();
         test_stark_circuit_constraints::<F, C, S, D>(
             stark,
             metadata.columns,

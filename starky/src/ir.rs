@@ -16,6 +16,18 @@ pub trait Constraint<F> {
     }
 }
 
+/*
+impl<F, C> Constraint<F> for &mut C
+where
+    C: Constraint<F>,
+{
+    #[inline]
+    fn assert_zero(&mut self, value: F) {
+        (**self).assert_zero(value)
+    }
+}
+*/
+
 /// Constraint Filtered
 pub trait ConstraintFiltered<F, Filter> {
     /// Asserts that `value == 0` whenever the `filter` is true.
@@ -101,6 +113,18 @@ pub trait Add<F> {
     }
 }
 
+/*
+impl<F, C> Add<F> for &mut C
+where
+    C: Add<F>,
+{
+    #[inline]
+    fn add(&mut self, lhs: F, rhs: F) -> F {
+        (**self).add(lhs, rhs)
+    }
+}
+*/
+
 /// Negation
 pub trait Neg<F> {
     /// Returns the negation of `value`.
@@ -112,6 +136,18 @@ pub trait Sub<F> {
     /// Subtracts `lhs` and `rhs` returning their difference.
     fn sub(&mut self, lhs: F, rhs: F) -> F;
 }
+
+/*
+impl<F, C> Sub<F> for &mut C
+where
+    C: Sub<F>,
+{
+    #[inline]
+    fn sub(&mut self, lhs: F, rhs: F) -> F {
+        (**self).sub(lhs, rhs)
+    }
+}
+*/
 
 /// One
 pub trait One<F> {
@@ -136,6 +172,18 @@ pub trait Mul<F> {
             .unwrap_or_else(|| self.one())
     }
 }
+
+/*
+impl<F, C> Mul<F> for &mut C
+where
+    C: Mul<F>,
+{
+    #[inline]
+    fn mul(&mut self, lhs: F, rhs: F) -> F {
+        (**self).mul(lhs, rhs)
+    }
+}
+*/
 
 /// IR Compiler
 pub trait Compiler<F>:

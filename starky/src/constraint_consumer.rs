@@ -14,6 +14,46 @@ use crate::ir::{
     Add, Compiler, Constraint, ConstraintFiltered, FirstRow, LastRow, Mul, Sub, Transition,
 };
 
+impl<P> Add<P> for ()
+where
+    P: PackedField,
+{
+    #[inline]
+    fn add(&mut self, lhs: P, rhs: P) -> P {
+        lhs + rhs
+    }
+}
+
+impl<F, const D: usize> Add<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn add(&mut self, lhs: ExtensionTarget<D>, rhs: ExtensionTarget<D>) -> ExtensionTarget<D> {
+        self.add_extension(lhs, rhs)
+    }
+}
+
+impl<P> Sub<P> for ()
+where
+    P: PackedField,
+{
+    #[inline]
+    fn sub(&mut self, lhs: P, rhs: P) -> P {
+        lhs - rhs
+    }
+}
+
+impl<F, const D: usize> Sub<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn sub(&mut self, lhs: ExtensionTarget<D>, rhs: ExtensionTarget<D>) -> ExtensionTarget<D> {
+        self.sub_extension(lhs, rhs)
+    }
+}
+
 impl<P> Mul<P> for ()
 where
     P: PackedField,
@@ -142,55 +182,152 @@ impl<T, E> Consumer<T, E> {
     }
 }
 
+/// Constraint Compiler
+pub struct ConstraintCompiler<'c, T, E, COM> {
+    /// Consumer Reference
+    pub consumer: &'c mut Consumer<T, E>,
+
+    /// Compiler Reference
+    pub compiler: &'c mut COM,
+}
+
+impl<'c, T, E, COM> ConstraintCompiler<'c, T, E, COM> {
+    /// Builds a new [`ConstraintCompiler`] from `consumer` and `compiler`.
+    #[inline]
+    pub fn new(consumer: &'c mut Consumer<T, E>, compiler: &'c mut COM) -> Self {
+        Self { consumer, compiler }
+    }
+}
+
+impl<'c, T, E, COM> Constraint<E> for ConstraintCompiler<'c, T, E, COM>
+where
+    T: Clone,
+    E: Clone,
+    COM: ScalarMulAdd<T, E>,
+{
+    #[inline]
+    fn assert_zero(&mut self, value: E) {
+        self.consumer.constraint(value, self.compiler)
+    }
+}
+
+impl<'c, T, E, COM> ConstraintFiltered<E, Transition> for ConstraintCompiler<'c, T, E, COM>
+where
+    T: Clone,
+    E: Clone,
+    COM: Add<E> + Mul<E> + ScalarMulAdd<T, E> + Sub<E>,
+{
+    #[inline]
+    fn assert_zero_when(&mut self, _: Transition, value: E) {
+        self.assert_zero_product(self.consumer.z_last.clone(), value);
+    }
+}
+
+impl<'c, T, E, COM> ConstraintFiltered<E, FirstRow> for ConstraintCompiler<'c, T, E, COM>
+where
+    T: Clone,
+    E: Clone,
+    COM: Add<E> + Mul<E> + ScalarMulAdd<T, E> + Sub<E>,
+{
+    #[inline]
+    fn assert_zero_when(&mut self, _: FirstRow, value: E) {
+        self.assert_zero_product(self.consumer.lagrange_basis_first.clone(), value);
+    }
+}
+
+impl<'c, T, E, COM> ConstraintFiltered<E, LastRow> for ConstraintCompiler<'c, T, E, COM>
+where
+    T: Clone,
+    E: Clone,
+    COM: Add<E> + Mul<E> + ScalarMulAdd<T, E> + Sub<E>,
+{
+    #[inline]
+    fn assert_zero_when(&mut self, _: LastRow, value: E) {
+        self.assert_zero_product(self.consumer.lagrange_basis_last.clone(), value);
+    }
+}
+
+impl<'c, T, E, COM> Add<E> for ConstraintCompiler<'c, T, E, COM>
+where
+    COM: Add<E>,
+{
+    #[inline]
+    fn add(&mut self, lhs: E, rhs: E) -> E {
+        self.compiler.add(lhs, rhs)
+    }
+}
+
+impl<'c, T, E, COM> Sub<E> for ConstraintCompiler<'c, T, E, COM>
+where
+    COM: Sub<E>,
+{
+    #[inline]
+    fn sub(&mut self, lhs: E, rhs: E) -> E {
+        self.compiler.sub(lhs, rhs)
+    }
+}
+
+impl<'c, T, E, COM> Mul<E> for ConstraintCompiler<'c, T, E, COM>
+where
+    COM: Mul<E>,
+{
+    #[inline]
+    fn mul(&mut self, lhs: E, rhs: E) -> E {
+        self.compiler.mul(lhs, rhs)
+    }
+}
+
 /// Constraint Consumer
 pub type ConstraintConsumer<P> = Consumer<<P as PackedField>::Scalar, P>;
 
-///
-pub struct ConstraintCompiler<P>(pub ConstraintConsumer<P>)
-where
-    P: PackedField;
+/// Recursive Constraint Consumer
+pub type RecursiveConstraintConsumer<const D: usize> = Consumer<Target, ExtensionTarget<D>>;
 
-impl<P> Constraint<P> for ConstraintCompiler<P>
+/*
+/// Constraint Consumer
+pub type ConstraintConsumer<P> = Consumer<<P as PackedField>::Scalar, P>;
+
+impl<P> Constraint<P> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
     #[inline]
     fn assert_zero(&mut self, value: P) {
-        self.0.constraint(value, &mut ())
+        self.constraint(value, &mut ())
     }
 }
 
-impl<P> ConstraintFiltered<P, Transition> for ConstraintCompiler<P>
+impl<P> ConstraintFiltered<P, Transition> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
     #[inline]
     fn assert_zero_when(&mut self, _: Transition, value: P) {
-        self.assert_zero_product(self.0.z_last, value);
+        self.assert_zero_product(self.z_last, value);
     }
 }
 
-impl<P> ConstraintFiltered<P, FirstRow> for ConstraintCompiler<P>
+impl<P> ConstraintFiltered<P, FirstRow> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
     #[inline]
     fn assert_zero_when(&mut self, _: FirstRow, value: P) {
-        self.assert_zero_product(self.0.lagrange_basis_first, value);
+        self.assert_zero_product(self.lagrange_basis_first, value);
     }
 }
 
-impl<P> ConstraintFiltered<P, LastRow> for ConstraintCompiler<P>
+impl<P> ConstraintFiltered<P, LastRow> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
     #[inline]
     fn assert_zero_when(&mut self, _: LastRow, value: P) {
-        self.assert_zero_product(self.0.lagrange_basis_last, value);
+        self.assert_zero_product(self.lagrange_basis_last, value);
     }
 }
 
-impl<P> Add<P> for ConstraintCompiler<P>
+impl<P> Add<P> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
@@ -200,7 +337,7 @@ where
     }
 }
 
-impl<P> Mul<P> for ConstraintCompiler<P>
+impl<P> Mul<P> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
@@ -210,7 +347,7 @@ where
     }
 }
 
-impl<P> Sub<P> for ConstraintCompiler<P>
+impl<P> Sub<P> for ConstraintConsumer<P>
 where
     P: PackedField,
 {
@@ -220,33 +357,36 @@ where
     }
 }
 
+/// Constraint Consumer
+pub type ConstraintConsumer<P> = Consumer<>;
+
 /// Recursive Constraint Consumer
 pub type RecursiveConstraintConsumer<const D: usize> = Consumer<Target, ExtensionTarget<D>>;
 
 /// Recursive Constraint Compiler
-pub struct RecursiveConstraintCompiler<F, const D: usize>
+pub struct RecursiveConstraintCompiler<'t, F, const D: usize>
 where
     F: RichField + Extendable<D>,
 {
     /// Consumer
-    pub consumer: RecursiveConstraintConsumer<D>,
+    pub consumer: &'t mut RecursiveConstraintConsumer<D>,
 
     /// Circuit Builder
-    pub builder: CircuitBuilder<F, D>,
+    pub builder: &'t mut CircuitBuilder<F, D>,
 }
 
-impl<F, const D: usize> Constraint<ExtensionTarget<D>> for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> Constraint<ExtensionTarget<D>> for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
     #[inline]
     fn assert_zero(&mut self, value: ExtensionTarget<D>) {
-        self.consumer.constraint(value, &mut self.builder)
+        self.consumer.constraint(value, self.builder)
     }
 }
 
-impl<F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, Transition>
-    for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, Transition>
+    for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -256,8 +396,8 @@ where
     }
 }
 
-impl<F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, FirstRow>
-    for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, FirstRow>
+    for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -267,8 +407,8 @@ where
     }
 }
 
-impl<F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, LastRow>
-    for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> ConstraintFiltered<ExtensionTarget<D>, LastRow>
+    for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -278,7 +418,7 @@ where
     }
 }
 
-impl<F, const D: usize> Add<ExtensionTarget<D>> for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> Add<ExtensionTarget<D>> for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -288,7 +428,7 @@ where
     }
 }
 
-impl<F, const D: usize> Mul<ExtensionTarget<D>> for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> Mul<ExtensionTarget<D>> for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -298,7 +438,7 @@ where
     }
 }
 
-impl<F, const D: usize> Sub<ExtensionTarget<D>> for RecursiveConstraintCompiler<F, D>
+impl<'t, F, const D: usize> Sub<ExtensionTarget<D>> for RecursiveConstraintCompiler<'t, F, D>
 where
     F: RichField + Extendable<D>,
 {
@@ -307,3 +447,5 @@ where
         self.builder.sub_extension(lhs, rhs)
     }
 }
+
+*/
