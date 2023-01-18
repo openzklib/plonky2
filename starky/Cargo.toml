@@ -19,3 +19,5 @@ plonky2 = { path = "../plonky2", default-features = false }
 
 [dev-dependencies]
 env_logger = { version = "0.9.0", default-features = false }
+paste = "1.0.11"
+rand = "0.8.5"
