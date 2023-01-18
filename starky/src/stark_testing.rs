@@ -14,8 +14,8 @@ use plonky2::plonk::config::GenericConfig;
 use plonky2::util::{log2_ceil, log2_strict, transpose};
 
 use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::ir::Registers;
 use crate::stark::Stark;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 const WITNESS_SIZE: usize = 1 << 5;
 
@@ -44,7 +44,7 @@ pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const
     let alpha = F::rand();
     let constraint_evals = (0..size)
         .map(|i| {
-            let vars = StarkEvaluationVars {
+            let vars = Registers {
                 local_values: &trace_ldes[i],
                 next_values: &trace_ldes[(i + (1 << rate_bits)) % size],
                 public_inputs: &public_inputs,
@@ -56,7 +56,7 @@ pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const
                 lagrange_first.values[i],
                 lagrange_last.values[i],
             );
-            stark.eval_packed_base(vars, &mut consumer);
+            stark.eval_packed_generic(vars, &mut consumer);
             consumer.into_accumulators()[0]
         })
         .collect::<Vec<_>>();
@@ -91,7 +91,7 @@ pub fn test_stark_circuit_constraints<
     assert_eq!(stark.metadata().public_inputs, public_inputs);
 
     // Compute native constraint evaluation on random values.
-    let vars = StarkEvaluationVars {
+    let vars = Registers {
         local_values: &F::Extension::rand_vec(columns),
         next_values: &F::Extension::rand_vec(columns),
         public_inputs: &F::Extension::rand_vec(public_inputs),
@@ -111,7 +111,7 @@ pub fn test_stark_circuit_constraints<
         lagrange_first,
         lagrange_last,
     );
-    stark.eval_ext(vars, &mut consumer);
+    stark.eval_packed_generic(vars, &mut consumer);
     let native_eval = consumer.into_accumulators()[0];
 
     // Compute circuit constraint evaluation on same random values.
@@ -134,7 +134,7 @@ pub fn test_stark_circuit_constraints<
     let lagrange_last_t = builder.add_virtual_extension_target();
     pw.set_extension_target(lagrange_last_t, lagrange_last);
 
-    let vars = StarkEvaluationTargets::<D> {
+    let vars = Registers {
         local_values: &locals_t,
         next_values: &nexts_t,
         public_inputs: &pis_t,

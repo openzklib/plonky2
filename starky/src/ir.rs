@@ -256,6 +256,19 @@ pub trait Constant<T, F> {
     fn constant(&mut self, value: T) -> F;
 }
 
+/// STARK Registers
+#[derive(Clone, Copy, Debug)]
+pub struct Registers<'t, T> {
+    /// Current Values
+    pub local_values: &'t [T],
+
+    /// Next Values
+    pub next_values: &'t [T],
+
+    /// Public Inputs
+    pub public_inputs: &'t [T],
+}
+
 /// STARK Evaluation
 pub trait Eval<F, COM = ()>
 where
@@ -263,4 +276,15 @@ where
 {
     /// Evaluates a STARK over `curr`, `next`, `public_inputs` using `compiler`.
     fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], compiler: &mut COM);
+
+    /// Evaluates a STARK over `registers` using `compiler`.
+    #[inline]
+    fn eval_registers(&self, registers: Registers<F>, compiler: &mut COM) {
+        self.eval(
+            registers.local_values,
+            registers.next_values,
+            registers.public_inputs,
+            compiler,
+        );
+    }
 }

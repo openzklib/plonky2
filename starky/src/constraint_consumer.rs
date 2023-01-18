@@ -183,7 +183,7 @@ impl<T, E> Consumer<T, E> {
 }
 
 /// Constraint Compiler
-pub struct ConstraintCompiler<'c, T, E, COM> {
+pub struct ConstraintCompiler<'c, T, E, COM = ()> {
     /// Consumer Reference
     pub consumer: &'c mut Consumer<T, E>,
 

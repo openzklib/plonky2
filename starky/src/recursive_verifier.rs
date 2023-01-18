@@ -16,6 +16,7 @@ use plonky2::with_context;
 
 use crate::config::StarkConfig;
 use crate::constraint_consumer::RecursiveConstraintConsumer;
+use crate::ir::Registers;
 use crate::permutation::PermutationCheckDataTarget;
 use crate::proof::{
     StarkOpeningSetTarget, StarkProof, StarkProofChallengesTarget, StarkProofTarget,
@@ -23,7 +24,6 @@ use crate::proof::{
 };
 use crate::stark::Stark;
 use crate::vanishing_poly::eval_vanishing_poly_circuit;
-use crate::vars::StarkEvaluationTargets;
 
 pub fn verify_stark_proof_circuit<
     F: RichField + Extendable<D>,
@@ -88,7 +88,7 @@ fn verify_stark_proof_with_challenges_circuit<
         permutation_zs_next,
         quotient_polys,
     } = &proof.openings;
-    let vars = StarkEvaluationTargets {
+    let vars = Registers {
         local_values,
         next_values,
         public_inputs: &public_inputs

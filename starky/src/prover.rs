@@ -19,6 +19,7 @@ use plonky2::util::{log2_ceil, log2_strict, transpose};
 
 use crate::config::StarkConfig;
 use crate::constraint_consumer::ConstraintConsumer;
+use crate::ir::Registers;
 use crate::permutation::{
     compute_permutation_z_polys, get_n_permutation_challenge_sets, PermutationChallengeSet,
     PermutationCheckVars,
@@ -26,7 +27,6 @@ use crate::permutation::{
 use crate::proof::{StarkOpeningSet, StarkProof, StarkProofWithPublicInputs};
 use crate::stark::Stark;
 use crate::vanishing_poly::eval_vanishing_poly;
-use crate::vars::StarkEvaluationVars;
 
 pub fn prove<F, C, S, const D: usize>(
     stark: S,
@@ -265,7 +265,7 @@ where
                 lagrange_basis_first,
                 lagrange_basis_last,
             );
-            let vars = StarkEvaluationVars {
+            let vars = Registers {
                 local_values: &get_trace_values_packed(i_start),
                 next_values: &get_trace_values_packed(i_next_start),
                 public_inputs: &public_inputs

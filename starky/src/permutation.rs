@@ -20,8 +20,8 @@ use plonky2::util::reducing::{ReducingFactor, ReducingFactorTarget};
 
 use crate::config::StarkConfig;
 use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::ir::Registers;
 use crate::stark::Stark;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 /// A pair of lists of columns, `lhs` and `rhs`, that should be permutations of one another.
 /// In particular, there should exist some permutation `pi` such that for any `i`,
@@ -274,7 +274,7 @@ pub type PermutationCheckDataTarget<const D: usize> = PermutationCheck<Target, E
 pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: usize>(
     stark: &S,
     config: &StarkConfig,
-    vars: StarkEvaluationVars<P>,
+    vars: Registers<P>,
     permutation_data: PermutationCheckVars<P, D2>,
     consumer: &mut ConstraintConsumer<P>,
 ) where
@@ -335,7 +335,7 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     stark: &S,
     config: &StarkConfig,
-    vars: StarkEvaluationTargets<D>,
+    vars: Registers<ExtensionTarget<D>>,
     permutation_data: PermutationCheckDataTarget<D>,
     consumer: &mut RecursiveConstraintConsumer<D>,
 ) where

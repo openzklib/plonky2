@@ -15,7 +15,6 @@ pub mod stark;
 pub mod stark_testing;
 pub mod util;
 pub mod vanishing_poly;
-pub mod vars;
 pub mod verifier;
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use plonky2::fri::structure::{
 };
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::ext_target::ExtensionTarget;
+use plonky2::iop::target::Target;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::util::ceil_div_usize;
 
@@ -16,9 +17,8 @@ use crate::config::StarkConfig;
 use crate::constraint_consumer::{
     self, ConstraintCompiler, ConstraintConsumer, Consumer, RecursiveConstraintConsumer,
 };
-use crate::ir::Compiler;
+use crate::ir::{Compiler, Eval, Registers};
 use crate::permutation::PermutationPair;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 /// STARK Configuration
 pub trait StarkConfiguration {
@@ -50,6 +50,51 @@ pub trait StarkConfiguration {
     }
 }
 
+/// Evaluate constraints at a vector of points.
+///
+/// The points are elements of a field `FE`, a degree `D2` extension of `F`. This lets us
+/// evaluate constraints over a larger domain if desired. This can also be called with `FE = F`
+/// and `D2 = 1`, in which case we are using the trivial extension, i.e. just evaluating
+/// constraints over `F`.
+#[inline]
+pub fn eval<P, E>(stark: &E, vars: Registers<P>, yield_constr: &mut ConstraintConsumer<P>)
+where
+    P: PackedField,
+    E: for<'c> Eval<P, ConstraintCompiler<'c, P::Scalar, P>>,
+{
+    stark.eval(
+        vars.local_values,
+        vars.next_values,
+        vars.public_inputs,
+        &mut ConstraintCompiler::new(yield_constr, &mut ()),
+    )
+}
+
+/// Evaluate constraints at a vector of points from the degree `D` extension field. This is like
+/// `eval_ext`, except in the context of a recursive circuit.
+/// Note: constraints must be added through`yeld_constr.constraint(builder, constraint)` in the
+/// same order as they are given in `eval_packed_generic`.
+#[inline]
+pub fn eval_circuit<F, const D: usize, E>(
+    stark: &E,
+    builder: &mut CircuitBuilder<F, D>,
+    vars: Registers<ExtensionTarget<D>>,
+    yield_constr: &mut RecursiveConstraintConsumer<D>,
+) where
+    F: RichField + Extendable<D>,
+    E: for<'c> Eval<
+        ExtensionTarget<D>,
+        ConstraintCompiler<'c, Target, ExtensionTarget<D>, CircuitBuilder<F, D>>,
+    >,
+{
+    stark.eval(
+        vars.local_values,
+        vars.next_values,
+        vars.public_inputs,
+        &mut ConstraintCompiler::new(yield_constr, builder),
+    )
+}
+
 /// Represents a STARK system.
 pub trait Stark<F: RichField + Extendable<D>, const D: usize>: StarkConfiguration {
     ///
@@ -66,7 +111,7 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: StarkConfiguratio
     /// constraints over `F`.
     fn eval_packed_generic<FE, P, const D2: usize>(
         &self,
-        vars: StarkEvaluationVars<P>,
+        vars: Registers<P>,
         yield_constr: &mut ConstraintConsumer<P>,
     ) where
         FE: FieldExtension<D2, BaseField = F>,
@@ -80,26 +125,6 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: StarkConfiguratio
         )
     }
 
-    /// Evaluate constraints at a vector of points from the base field `F`.
-    #[inline]
-    fn eval_packed_base<P: PackedField<Scalar = F>>(
-        &self,
-        vars: StarkEvaluationVars<P>,
-        yield_constr: &mut ConstraintConsumer<P>,
-    ) {
-        self.eval_packed_generic(vars, yield_constr)
-    }
-
-    /// Evaluate constraints at a single point from the degree `D` extension field.
-    #[inline]
-    fn eval_ext(
-        &self,
-        vars: StarkEvaluationVars<F::Extension>,
-        yield_constr: &mut ConstraintConsumer<F::Extension>,
-    ) {
-        self.eval_packed_generic(vars, yield_constr)
-    }
-
     /// Evaluate constraints at a vector of points from the degree `D` extension field. This is like
     /// `eval_ext`, except in the context of a recursive circuit.
     /// Note: constraints must be added through`yeld_constr.constraint(builder, constraint)` in the
@@ -107,7 +132,7 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: StarkConfiguratio
     fn eval_ext_circuit(
         &self,
         builder: &mut CircuitBuilder<F, D>,
-        vars: StarkEvaluationTargets<D>,
+        vars: Registers<ExtensionTarget<D>>,
         yield_constr: &mut RecursiveConstraintConsumer<D>,
     ) {
         self.eval(

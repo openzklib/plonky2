@@ -12,11 +12,11 @@ use plonky2::plonk::plonk_common::reduce_with_powers;
 
 use crate::config::StarkConfig;
 use crate::constraint_consumer::ConstraintConsumer;
+use crate::ir::Registers;
 use crate::permutation::PermutationCheckVars;
 use crate::proof::{StarkOpeningSet, StarkProof, StarkProofChallenges, StarkProofWithPublicInputs};
 use crate::stark::Stark;
 use crate::vanishing_poly::eval_vanishing_poly;
-use crate::vars::StarkEvaluationVars;
 
 pub fn verify_stark_proof<
     F: RichField + Extendable<D>,
@@ -59,7 +59,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
         permutation_zs_next,
         quotient_polys,
     } = &proof.openings;
-    let vars = StarkEvaluationVars {
+    let vars = Registers {
         local_values,
         next_values,
         public_inputs: &public_inputs
