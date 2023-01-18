@@ -5,7 +5,7 @@ extern crate alloc;
 mod get_challenges;
 
 pub mod config;
-pub mod constraint_consumer;
+pub mod consumer;
 pub mod ir;
 pub mod permutation;
 pub mod proof;

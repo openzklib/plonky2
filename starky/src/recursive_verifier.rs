@@ -15,7 +15,7 @@ use plonky2::util::reducing::ReducingFactorTarget;
 use plonky2::with_context;
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::RecursiveConstraintConsumer;
+use crate::consumer::basic::RecursiveConstraintConsumer;
 use crate::ir::Registers;
 use crate::permutation::PermutationCheckDataTarget;
 use crate::proof::{
@@ -28,7 +28,7 @@ use crate::vanishing_poly::eval_vanishing_poly_circuit;
 pub fn verify_stark_proof_circuit<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
     const D: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
@@ -62,7 +62,7 @@ pub fn verify_stark_proof_circuit<
 fn verify_stark_proof_with_challenges_circuit<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
     const D: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
@@ -189,7 +189,7 @@ fn eval_l_0_and_l_last_circuit<F: RichField + Extendable<D>, const D: usize>(
 
 pub fn add_virtual_stark_proof_with_pis<
     F: RichField + Extendable<D>,
-    S: Stark<F, D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
     const D: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
@@ -204,7 +204,11 @@ pub fn add_virtual_stark_proof_with_pis<
     }
 }
 
-pub fn add_virtual_stark_proof<F: RichField + Extendable<D>, S: Stark<F, D>, const D: usize>(
+pub fn add_virtual_stark_proof<
+    F: RichField + Extendable<D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
+    const D: usize,
+>(
     builder: &mut CircuitBuilder<F, D>,
     stark: S,
     config: &StarkConfig,
@@ -236,7 +240,11 @@ pub fn add_virtual_stark_proof<F: RichField + Extendable<D>, S: Stark<F, D>, con
     }
 }
 
-fn add_stark_opening_set_target<F: RichField + Extendable<D>, S: Stark<F, D>, const D: usize>(
+fn add_stark_opening_set_target<
+    F: RichField + Extendable<D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
+    const D: usize,
+>(
     builder: &mut CircuitBuilder<F, D>,
     stark: S,
     config: &StarkConfig,
@@ -311,7 +319,11 @@ pub fn set_stark_proof_target<F, C: GenericConfig<D, F = F>, W, const D: usize>(
 
 /// Utility function to check that all permutation data wrapped in `Option`s are `Some` iff
 /// the Stark uses a permutation argument.
-fn check_permutation_options<F: RichField + Extendable<D>, S: Stark<F, D>, const D: usize>(
+fn check_permutation_options<
+    F: RichField + Extendable<D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
+    const D: usize,
+>(
     stark: &S,
     proof_with_pis: &StarkProofWithPublicInputsTarget<D>,
     challenges: &StarkProofChallengesTarget<D>,

@@ -2,20 +2,18 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
-use core::marker::PhantomData;
 
-use plonky2::field::extension::{Extendable, FieldExtension};
-use plonky2::field::packed::PackedField;
+use plonky2::field::extension::Extendable;
 use plonky2::field::polynomial::PolynomialValues;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use crate::constraint_consumer::{self, ConstraintConsumer, Consumer, RecursiveConstraintConsumer};
-use crate::ir::{Compiler, Eval};
+use crate::consumer::basic::ConstraintConsumer;
+use crate::consumer::Compiler;
+use crate::ir::{Add, Arithmetic, Assertions};
 use crate::permutation::PermutationPair;
-use crate::stark::{Stark, StarkConfiguration};
+use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::util::trace_rows_to_poly_values;
-use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
 /// Toy STARK system used for testing.
 ///
@@ -86,13 +84,14 @@ impl StarkConfiguration for FibonacciStark {
     }
 }
 
-impl<F, COM> Eval<F, COM> for FibonacciStark
+impl<F, C, COM> Stark<F, C, COM> for FibonacciStark
 where
     F: Copy,
-    COM: Compiler<F>,
+    C: StandardConsumer<F, COM>,
+    COM: Arithmetic<F>,
 {
     #[inline]
-    fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], compiler: &mut COM) {
+    fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
         // Constrain Public Inputs
         compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X0], curr[0]);
         compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X1], curr[1]);
@@ -107,21 +106,11 @@ where
     }
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark {
-    #[inline]
-    fn eval<T, COM>(&self, curr: &[T], next: &[T], public_inputs: &[T], compiler: &mut COM)
-    where
-        T: Copy,
-        COM: Compiler<T>,
-    {
-        Eval::eval(self, curr, next, public_inputs, compiler)
-    }
-}
-
 #[cfg(test)]
-mod tests {
+mod test {
     use anyhow::Result;
     use plonky2::field::types::Field;
+    use plonky2::iop::ext_target::ExtensionTarget;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig};
@@ -129,6 +118,7 @@ mod tests {
 
     use super::*;
     use crate::config::StarkConfig;
+    use crate::consumer::basic::RecursiveConstraintConsumer;
     use crate::proof::StarkProofWithPublicInputs;
     use crate::prover::prove;
     use crate::recursive_verifier::{
@@ -223,7 +213,9 @@ mod tests {
     fn recursive_proof<
         F: RichField + Extendable<D>,
         C: GenericConfig<D, F = F>,
-        S: Stark<F, D> + Copy,
+        S: Copy
+            + Stark<F, ConstraintConsumer<F>>
+            + Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
         InnerC: GenericConfig<D, F = F>,
         const D: usize,
     >(

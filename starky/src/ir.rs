@@ -1,5 +1,13 @@
 //! STARK IR
 
+// TODO: Use `AssertZero` and `AssertEq` traits
+
+use plonky2::field::extension::Extendable;
+use plonky2::field::packed::PackedField;
+use plonky2::hash::hash_types::RichField;
+use plonky2::iop::ext_target::ExtensionTarget;
+use plonky2::plonk::circuit_builder::CircuitBuilder;
+
 /// Constraint
 pub trait Constraint<F> {
     /// Asserts that `value == 0` in the constraint system.
@@ -16,7 +24,6 @@ pub trait Constraint<F> {
     }
 }
 
-/*
 impl<F, C> Constraint<F> for &mut C
 where
     C: Constraint<F>,
@@ -26,7 +33,6 @@ where
         (**self).assert_zero(value)
     }
 }
-*/
 
 /// Constraint Filtered
 pub trait ConstraintFiltered<F, Filter> {
@@ -45,9 +51,26 @@ pub trait ConstraintFiltered<F, Filter> {
     }
 }
 
+///
+pub trait Filter<F, C> {
+    /// Asserts that `value == 0` whenever the `self` is true.
+    fn assert_zero_when(self, value: F, consumer: &mut C);
+}
+
 /// All Rows Filter
 pub struct All;
 
+impl<F, C> Filter<F, C> for All
+where
+    C: Constraint<F>,
+{
+    #[inline]
+    fn assert_zero_when(self, value: F, consumer: &mut C) {
+        consumer.assert_zero(value)
+    }
+}
+
+/*
 impl<F, C> ConstraintFiltered<F, All> for C
 where
     C: Constraint<F>,
@@ -65,10 +88,23 @@ where
         self.assert_eq(lhs, rhs);
     }
 }
+*/
 
 /// Product Filter
 pub struct Product<F>(pub F);
 
+impl<F, C> Filter<F, C> for Product<F>
+where
+    C: Constraint<F> + Mul<F>,
+{
+    #[inline]
+    fn assert_zero_when(self, value: F, consumer: &mut C) {
+        let filtered_value = consumer.mul(value, self.0);
+        consumer.assert_zero(filtered_value);
+    }
+}
+
+/*
 impl<F, C> ConstraintFiltered<F, Product<F>> for C
 where
     C: Constraint<F> + Mul<F>,
@@ -79,6 +115,7 @@ where
         self.assert_zero(filtered_value);
     }
 }
+*/
 
 /// Transition Filter
 pub struct Transition;
@@ -93,6 +130,16 @@ pub struct LastRow;
 pub trait Zero<F> {
     /// Returns the additive identity over `F`.
     fn zero(&mut self) -> F;
+}
+
+impl<F, C> Zero<F> for &mut C
+where
+    C: Zero<F>,
+{
+    #[inline]
+    fn zero(&mut self) -> F {
+        (**self).zero()
+    }
 }
 
 /// Addition
@@ -113,7 +160,6 @@ pub trait Add<F> {
     }
 }
 
-/*
 impl<F, C> Add<F> for &mut C
 where
     C: Add<F>,
@@ -123,7 +169,26 @@ where
         (**self).add(lhs, rhs)
     }
 }
-*/
+
+impl<P> Add<P> for ()
+where
+    P: PackedField,
+{
+    #[inline]
+    fn add(&mut self, lhs: P, rhs: P) -> P {
+        lhs + rhs
+    }
+}
+
+impl<F, const D: usize> Add<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn add(&mut self, lhs: ExtensionTarget<D>, rhs: ExtensionTarget<D>) -> ExtensionTarget<D> {
+        self.add_extension(lhs, rhs)
+    }
+}
 
 /// Negation
 pub trait Neg<F> {
@@ -137,7 +202,6 @@ pub trait Sub<F> {
     fn sub(&mut self, lhs: F, rhs: F) -> F;
 }
 
-/*
 impl<F, C> Sub<F> for &mut C
 where
     C: Sub<F>,
@@ -147,12 +211,41 @@ where
         (**self).sub(lhs, rhs)
     }
 }
-*/
+
+impl<P> Sub<P> for ()
+where
+    P: PackedField,
+{
+    #[inline]
+    fn sub(&mut self, lhs: P, rhs: P) -> P {
+        lhs - rhs
+    }
+}
+
+impl<F, const D: usize> Sub<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn sub(&mut self, lhs: ExtensionTarget<D>, rhs: ExtensionTarget<D>) -> ExtensionTarget<D> {
+        self.sub_extension(lhs, rhs)
+    }
+}
 
 /// One
 pub trait One<F> {
     /// Returns the multiplicative identity over `F`.
     fn one(&mut self) -> F;
+}
+
+impl<F, C> One<F> for &mut C
+where
+    C: One<F>,
+{
+    #[inline]
+    fn one(&mut self) -> F {
+        (**self).one()
+    }
 }
 
 /// Multiplication
@@ -173,7 +266,6 @@ pub trait Mul<F> {
     }
 }
 
-/*
 impl<F, C> Mul<F> for &mut C
 where
     C: Mul<F>,
@@ -183,72 +275,99 @@ where
         (**self).mul(lhs, rhs)
     }
 }
-*/
 
-/// IR Compiler
-pub trait Compiler<F>:
-    Constraint<F>
-    + ConstraintFiltered<F, Transition>
-    + ConstraintFiltered<F, FirstRow>
-    + ConstraintFiltered<F, LastRow>
-    + Add<F>
-    + Mul<F>
-    + Sub<F>
-    + Sized
+impl<P> Mul<P> for ()
+where
+    P: PackedField,
 {
+    #[inline]
+    fn mul(&mut self, lhs: P, rhs: P) -> P {
+        lhs * rhs
+    }
+}
+
+impl<F, const D: usize> Mul<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn mul(&mut self, lhs: ExtensionTarget<D>, rhs: ExtensionTarget<D>) -> ExtensionTarget<D> {
+        self.mul_extension(lhs, rhs)
+    }
+}
+
+/// Arithmetic over a Field
+pub trait Arithmetic<F>: Add<F> + Mul<F> + Sub<F> {}
+
+impl<F, C> Arithmetic<F> for C where C: Add<F> + Mul<F> + Sub<F> {}
+
+/// IR Assertions
+pub trait Assertions<F>: Sized {
     ///
     #[inline]
-    fn assert_zero_product(&mut self, lhs: F, rhs: F) {
-        self.assert_zero_when(Product(lhs), rhs);
+    fn assert_zero_product(&mut self, lhs: F, rhs: F)
+    where
+        Self: Constraint<F> + Mul<F>,
+    {
+        Product(lhs).assert_zero_when(rhs, self)
     }
 
     ///
     #[inline]
-    fn assert_zero_transition(&mut self, value: F) {
+    fn assert_zero_transition(&mut self, value: F)
+    where
+        Self: ConstraintFiltered<F, Transition>,
+    {
         self.assert_zero_when(Transition, value);
     }
 
     ///
     #[inline]
-    fn assert_eq_transition(&mut self, lhs: F, rhs: F) {
+    fn assert_eq_transition(&mut self, lhs: F, rhs: F)
+    where
+        Self: ConstraintFiltered<F, Transition> + Sub<F>,
+    {
         self.assert_eq_when(Transition, lhs, rhs);
     }
 
     ///
     #[inline]
-    fn assert_zero_first_row(&mut self, value: F) {
+    fn assert_zero_first_row(&mut self, value: F)
+    where
+        Self: ConstraintFiltered<F, FirstRow>,
+    {
         self.assert_zero_when(FirstRow, value);
     }
 
     ///
     #[inline]
-    fn assert_eq_first_row(&mut self, lhs: F, rhs: F) {
+    fn assert_eq_first_row(&mut self, lhs: F, rhs: F)
+    where
+        Self: ConstraintFiltered<F, FirstRow> + Sub<F>,
+    {
         self.assert_eq_when(FirstRow, lhs, rhs);
     }
 
     ///
     #[inline]
-    fn assert_zero_last_row(&mut self, value: F) {
+    fn assert_zero_last_row(&mut self, value: F)
+    where
+        Self: ConstraintFiltered<F, LastRow>,
+    {
         self.assert_zero_when(LastRow, value);
     }
 
     ///
     #[inline]
-    fn assert_eq_last_row(&mut self, lhs: F, rhs: F) {
+    fn assert_eq_last_row(&mut self, lhs: F, rhs: F)
+    where
+        Self: ConstraintFiltered<F, LastRow> + Sub<F>,
+    {
         self.assert_eq_when(LastRow, lhs, rhs);
     }
 }
 
-impl<F, COM> Compiler<F> for COM where
-    COM: Constraint<F>
-        + ConstraintFiltered<F, Transition>
-        + ConstraintFiltered<F, FirstRow>
-        + ConstraintFiltered<F, LastRow>
-        + Add<F>
-        + Mul<F>
-        + Sub<F>
-{
-}
+impl<F, COM> Assertions<F> for COM {}
 
 /// Constant Allocation
 pub trait Constant<T, F> {
@@ -269,6 +388,7 @@ pub struct Registers<'t, T> {
     pub public_inputs: &'t [T],
 }
 
+/* TODO:
 /// STARK Evaluation
 pub trait Eval<F, COM = ()>
 where
@@ -288,3 +408,32 @@ where
         );
     }
 }
+
+///
+pub trait Eval<F, C, COM = ()> {
+    ///
+    type Registers<'t>;
+
+    ///
+    fn eval(&self, regsiters: Self::Registers<'_>, consumer: &mut C, compiler: &mut COM);
+}
+
+///
+pub trait Gate<F, COM = ()>
+where
+    COM: Compiler<F>,
+{
+    /// Gate Data
+    type Data;
+
+    /// Evaluates a STARK over `curr`, `next`, `public_inputs`, and `data` using `compiler`.
+    fn eval(
+        &self,
+        curr: &[F],
+        next: &[F],
+        public_inputs: &[F],
+        data: Self::Data,
+        compiler: &mut COM,
+    );
+}
+*/

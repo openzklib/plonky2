@@ -7,13 +7,14 @@ use plonky2::field::packed::PackedField;
 use plonky2::field::polynomial::{PolynomialCoeffs, PolynomialValues};
 use plonky2::field::types::{Field, Sample};
 use plonky2::hash::hash_types::RichField;
+use plonky2::iop::ext_target::ExtensionTarget;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::util::{log2_ceil, log2_strict, transpose};
 
-use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::consumer::basic::{ConstraintConsumer, RecursiveConstraintConsumer};
 use crate::ir::Registers;
 use crate::stark::Stark;
 
@@ -21,7 +22,11 @@ const WITNESS_SIZE: usize = 1 << 5;
 
 /// Tests that the constraints imposed by the given STARK are low-degree by applying them to random
 /// low-degree witness polynomials.
-pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const D: usize>(
+pub fn test_stark_low_degree<
+    F: RichField + Extendable<D>,
+    S: Stark<F, ConstraintConsumer<F>>,
+    const D: usize,
+>(
     stark: S,
     columns: usize,
     public_inputs: usize,
@@ -56,7 +61,7 @@ pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const
                 lagrange_first.values[i],
                 lagrange_last.values[i],
             );
-            stark.eval_packed_generic(vars, &mut consumer);
+            stark.eval_with(vars, &mut consumer, &mut ());
             consumer.into_accumulators()[0]
         })
         .collect::<Vec<_>>();
@@ -80,7 +85,8 @@ pub fn test_stark_low_degree<F: RichField + Extendable<D>, S: Stark<F, D>, const
 pub fn test_stark_circuit_constraints<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F::Extension, ConstraintConsumer<F::Extension>>
+        + Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
     const D: usize,
 >(
     stark: S,
@@ -111,7 +117,7 @@ pub fn test_stark_circuit_constraints<
         lagrange_first,
         lagrange_last,
     );
-    stark.eval_packed_generic(vars, &mut consumer);
+    stark.eval_with(vars, &mut consumer, &mut ());
     let native_eval = consumer.into_accumulators()[0];
 
     // Compute circuit constraint evaluation on same random values.
@@ -146,7 +152,7 @@ pub fn test_stark_circuit_constraints<
         lagrange_first_t,
         lagrange_last_t,
     );
-    stark.eval_ext_circuit(&mut builder, vars, &mut consumer);
+    stark.eval_with(vars, &mut consumer, &mut builder);
     let circuit_eval = consumer.into_accumulators()[0];
     let native_eval_t = builder.constant_extension(native_eval);
     builder.connect_extension(circuit_eval, native_eval_t);

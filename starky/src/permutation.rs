@@ -19,8 +19,9 @@ use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher};
 use plonky2::util::reducing::{ReducingFactor, ReducingFactorTarget};
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::{ConstraintConsumer, RecursiveConstraintConsumer};
-use crate::ir::Registers;
+use crate::consumer::basic::{ConstraintConsumer, RecursiveConstraintConsumer};
+use crate::consumer::{Consumer, ConsumerCompiler};
+use crate::ir::{Assertions, Registers};
 use crate::stark::Stark;
 
 /// A pair of lists of columns, `lhs` and `rhs`, that should be permutations of one another.
@@ -72,7 +73,7 @@ pub(crate) fn compute_permutation_z_polys<F, C, S, const D: usize>(
 where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, ConstraintConsumer<F>>,
 {
     let permutation_pairs = stark.permutation_pairs();
     let permutation_batches = get_permutation_batches(
@@ -276,13 +277,13 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
     config: &StarkConfig,
     vars: Registers<P>,
     permutation_data: PermutationCheckVars<P, D2>,
-    consumer: &mut ConstraintConsumer<P>,
+    mut consumer: &mut ConstraintConsumer<P>,
 ) where
     F: RichField + Extendable<D>,
     FE: FieldExtension<D2, BaseField = F>,
     P: PackedField<Scalar = FE>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<P, ConstraintConsumer<P>>,
 {
     let PermutationCheckVars {
         local_zs,
@@ -292,7 +293,7 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
 
     // Check that Z(1) = 1;
     for &z in &local_zs {
-        consumer.constraint_first_row(z - FE::ONE, &mut ());
+        ConsumerCompiler::new(&mut consumer, &mut ()).assert_eq_first_row(z, P::ONES);
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -314,14 +315,15 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
                     pair: PermutationPair { column_pairs },
                     challenge: PermutationChallenge { beta, gamma },
                 } = instance;
+                let gamma = FE::from_basefield(*gamma);
                 let mut factor = ReducingFactor::new(*beta);
                 let (lhs, rhs): (Vec<_>, Vec<_>) = column_pairs
                     .iter()
                     .map(|&(i, j)| (vars.local_values[i], vars.local_values[j]))
                     .unzip();
                 (
-                    factor.reduce_ext(lhs.into_iter()) + FE::from_basefield(*gamma),
-                    factor.reduce_ext(rhs.into_iter()) + FE::from_basefield(*gamma),
+                    factor.reduce_ext(lhs.into_iter()) + gamma,
+                    factor.reduce_ext(rhs.into_iter()) + gamma,
                 )
             })
             .unzip();
@@ -332,15 +334,15 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
 }
 
 pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
-    builder: &mut CircuitBuilder<F, D>,
+    mut builder: &mut CircuitBuilder<F, D>,
     stark: &S,
     config: &StarkConfig,
     vars: Registers<ExtensionTarget<D>>,
     permutation_data: PermutationCheckDataTarget<D>,
-    consumer: &mut RecursiveConstraintConsumer<D>,
+    mut consumer: &mut RecursiveConstraintConsumer<D>,
 ) where
     F: RichField + Extendable<D>,
-    S: Stark<F, D>,
+    S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
 {
     let PermutationCheckDataTarget {
         local_zs,
@@ -351,8 +353,7 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
     let one = builder.one_extension();
     // Check that Z(1) = 1;
     for &z in &local_zs {
-        let z_1 = builder.sub_extension(z, one);
-        consumer.constraint_first_row(z_1, builder);
+        ConsumerCompiler::new(&mut consumer, &mut builder).assert_eq_first_row(z, one);
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -399,3 +400,88 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
         consumer.constraint(constraint, builder)
     }
 }
+
+/* TODO:
+
+///
+pub struct PermutationGate {
+    ///
+    pub pairs: Vec<PermutationPair>,
+
+    ///
+    pub num_challenges: usize,
+
+    ///
+    pub permutation_batch_size: usize,
+}
+
+impl<F, COM> Gate<F, COM> for PermutationGate
+where
+    F: Copy,
+    COM: Compiler<F>,
+{
+    type Data = ();
+
+    ///
+    #[inline]
+    fn eval(
+        &self,
+        curr: &[F],
+        next: &[F],
+        public_inputs: &[F],
+        data: Self::Data,
+        compiler: &mut COM,
+    ) {
+        let Self::Data {
+            local_zs,
+            next_zs,
+            permutation_challenge_sets,
+        } = data;
+
+        let one = compiler.one();
+
+        for z in local_zs {
+            compiler.assert_eq_first_row(z, one);
+        }
+
+        let permutation_batches = get_permutation_batches(
+            &self.pairs,
+            &permutation_challenge_sets,
+            self.num_challenges,
+            self.permutation_batch_size,
+        );
+
+        for (i, instances) in permutation_batches.iter().enumerate() {
+            let (reduced_lhs, reduced_rhs): (Vec<_>, Vec<_>) = instances
+                .iter()
+                .map(|instance| {
+                    let PermutationInstance {
+                        pair: PermutationPair { column_pairs },
+                        challenge: PermutationChallenge { beta, gamma },
+                    } = instance;
+                    // TODO: They should already be in the right form
+                    // let beta_ext = builder.convert_to_ext(*beta);
+                    // let gamma_ext = builder.convert_to_ext(*gamma);
+                    // let mut factor = ReducingFactorTarget::new(beta_ext);
+                    let (lhs, rhs): (Vec<_>, Vec<_>) = column_pairs
+                        .iter()
+                        .map(|&(i, j)| (curr[i], curr[j]))
+                        .unzip();
+                    let reduced_lhs = beta.reduce(&lhs, compiler);
+                    let reduced_rhs = beta.reduce(&rhs, compiler);
+                    (
+                        compiler.add(reduced_lhs, gamma),
+                        compiler.add(reduced_rhs, gamma),
+                    )
+                })
+                .unzip();
+            let reduced_lhs_product = compiler.product(reduced_lhs);
+            let reduced_rhs_product = compiler.product(reduced_rhs);
+            let lhs = compiler.mul(local_zs[i], reduced_lhs_product);
+            let rhs = compiler.mul(next_zs[i], reduced_rhs_product);
+            compiler.assert_eq(lhs, rhs)
+        }
+    }
+}
+
+*/

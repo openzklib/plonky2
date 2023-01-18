@@ -18,7 +18,7 @@ use plonky2::util::timing::TimingTree;
 use plonky2::util::{log2_ceil, log2_strict, transpose};
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::ConstraintConsumer;
+use crate::consumer::basic::ConstraintConsumer;
 use crate::ir::Registers;
 use crate::permutation::{
     compute_permutation_z_polys, get_n_permutation_challenge_sets, PermutationChallengeSet,
@@ -38,7 +38,9 @@ pub fn prove<F, C, S, const D: usize>(
 where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D> + Sync,
+    S: Stark<F, ConstraintConsumer<F>>
+        + Stark<<F as Packable>::Packing, ConstraintConsumer<<F as Packable>::Packing>>
+        + Sync,
 {
     let degree = trace_poly_values[0].len();
     let degree_bits = log2_strict(degree);
@@ -210,7 +212,7 @@ where
     F: RichField + Extendable<D>,
     P: PackedField<Scalar = F>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D> + Sync,
+    S: Stark<P, ConstraintConsumer<P>> + Sync,
 {
     let degree = 1 << degree_bits;
     let rate_bits = config.fri_config.rate_bits;

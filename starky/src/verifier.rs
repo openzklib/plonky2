@@ -11,7 +11,7 @@ use plonky2::plonk::config::GenericConfig;
 use plonky2::plonk::plonk_common::reduce_with_powers;
 
 use crate::config::StarkConfig;
-use crate::constraint_consumer::ConstraintConsumer;
+use crate::consumer::basic::ConstraintConsumer;
 use crate::ir::Registers;
 use crate::permutation::PermutationCheckVars;
 use crate::proof::{StarkOpeningSet, StarkProof, StarkProofChallenges, StarkProofWithPublicInputs};
@@ -21,7 +21,7 @@ use crate::vanishing_poly::eval_vanishing_poly;
 pub fn verify_stark_proof<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, ConstraintConsumer<F>> + Stark<F::Extension, ConstraintConsumer<F::Extension>>,
     const D: usize,
 >(
     stark: S,
@@ -37,7 +37,7 @@ pub fn verify_stark_proof<
 pub(crate) fn verify_stark_proof_with_challenges<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, ConstraintConsumer<F>> + Stark<F::Extension, ConstraintConsumer<F::Extension>>,
     const D: usize,
 >(
     stark: S,
@@ -146,7 +146,7 @@ fn validate_proof_shape<F, C, S, const D: usize>(
 where
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, ConstraintConsumer<F>>,
 {
     let StarkProofWithPublicInputs {
         proof,
@@ -225,7 +225,7 @@ fn eval_l_0_and_l_last<F: Field>(log_n: usize, x: F) -> (F, F) {
 fn check_permutation_options<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
-    S: Stark<F, D>,
+    S: Stark<F, ConstraintConsumer<F>>,
     const D: usize,
 >(
     stark: &S,
