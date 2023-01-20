@@ -12,10 +12,10 @@ use crate::hash::hash_types::RichField;
 /// Placeholder value to indicate that a gate doesn't use a selector polynomial.
 pub(crate) const UNUSED_SELECTOR: usize = u32::MAX as usize;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SelectorsInfo {
-    pub(crate) selector_indices: Vec<usize>,
-    pub(crate) groups: Vec<Range<usize>>,
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SelectorsInfo {
+    pub selector_indices: Vec<usize>,
+    pub groups: Vec<Range<usize>>,
 }
 
 impl SelectorsInfo {

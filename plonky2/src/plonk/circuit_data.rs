@@ -150,15 +150,15 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         proof.decompress(&self.verifier_only.circuit_digest, &self.common)
     }
 
-    pub fn verifier_data(self) -> VerifierCircuitData<F, C, D> {
+    pub fn verifier_data(&self) -> VerifierCircuitData<F, C, D> {
         let CircuitData {
             verifier_only,
             common,
             ..
         } = self;
         VerifierCircuitData {
-            verifier_only,
-            common,
+            verifier_only: verifier_only.clone(),
+            common: common.clone(),
         }
     }
 
@@ -273,30 +273,30 @@ pub struct VerifierOnlyCircuitData<C: GenericConfig<D>, const D: usize> {
 pub struct CommonCircuitData<F: RichField + Extendable<D>, const D: usize> {
     pub config: CircuitConfig,
 
-    pub(crate) fri_params: FriParams,
+    pub fri_params: FriParams,
 
     /// The types of gates used in this circuit, along with their prefixes.
-    pub(crate) gates: Vec<GateRef<F, D>>,
+    pub gates: Vec<GateRef<F, D>>,
 
     /// Information on the circuit's selector polynomials.
-    pub(crate) selectors_info: SelectorsInfo,
+    pub selectors_info: SelectorsInfo,
 
     /// The degree of the PLONK quotient polynomial.
-    pub(crate) quotient_degree_factor: usize,
+    pub quotient_degree_factor: usize,
 
     /// The largest number of constraints imposed by any gate.
-    pub(crate) num_gate_constraints: usize,
+    pub num_gate_constraints: usize,
 
     /// The number of constant wires.
-    pub(crate) num_constants: usize,
+    pub num_constants: usize,
 
-    pub(crate) num_public_inputs: usize,
+    pub num_public_inputs: usize,
 
     /// The `{k_i}` valued used in `S_ID_i` in Plonk's permutation argument.
-    pub(crate) k_is: Vec<F>,
+    pub k_is: Vec<F>,
 
     /// The number of partial products needed to compute the `Z` polynomials.
-    pub(crate) num_partial_products: usize,
+    pub num_partial_products: usize,
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> CommonCircuitData<F, D> {
