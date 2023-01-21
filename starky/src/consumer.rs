@@ -1,6 +1,9 @@
 //! STARK Consumer
 
-use crate::ir::{Add, Constraint, ConstraintFiltered, FirstRow, LastRow, Mul, Sub, Transition};
+use crate::ir::{
+    Add, Constant, Constraint, ConstraintFiltered, FirstRow, LastRow, Mul, One, Sub, Transition,
+    Zero,
+};
 
 /// Consumer
 pub trait Consumer<F, COM = ()> {
@@ -74,6 +77,16 @@ where
     }
 }
 
+impl<'t, F, C, COM> Zero<F> for Compiler<'t, C, COM>
+where
+    COM: Zero<F>,
+{
+    #[inline]
+    fn zero(&mut self) -> F {
+        self.compiler.zero()
+    }
+}
+
 impl<'t, F, C, COM> Mul<F> for Compiler<'t, C, COM>
 where
     COM: Mul<F>,
@@ -81,6 +94,16 @@ where
     #[inline]
     fn mul(&mut self, lhs: F, rhs: F) -> F {
         self.compiler.mul(lhs, rhs)
+    }
+}
+
+impl<'t, F, C, COM> One<F> for Compiler<'t, C, COM>
+where
+    COM: One<F>,
+{
+    #[inline]
+    fn one(&mut self) -> F {
+        self.compiler.one()
     }
 }
 
@@ -102,6 +125,16 @@ where
     fn assert_zero_when(&mut self, filter: Filter, value: F) {
         self.consumer
             .constraint_filtered(filter, value, self.compiler);
+    }
+}
+
+impl<'t, T, F, C, COM> Constant<T, F> for Compiler<'t, C, COM>
+where
+    COM: Constant<T, F>,
+{
+    #[inline]
+    fn constant(&mut self, value: T) -> F {
+        self.compiler.constant(value)
     }
 }
 

@@ -4,6 +4,7 @@
 
 use plonky2::field::extension::Extendable;
 use plonky2::field::packed::PackedField;
+use plonky2::field::types::Field;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::ext_target::ExtensionTarget;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
@@ -142,10 +143,39 @@ where
     }
 }
 
+impl<F> Zero<F> for ()
+where
+    F: PackedField,
+{
+    #[inline]
+    fn zero(&mut self) -> F {
+        F::ZEROS
+    }
+}
+
+impl<F, const D: usize> Zero<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn zero(&mut self) -> ExtensionTarget<D> {
+        self.zero_extension()
+    }
+}
+
 /// Addition
 pub trait Add<F> {
     /// Adds `lhs` and `rhs` returning their sum.
     fn add(&mut self, lhs: F, rhs: F) -> F;
+
+    ///
+    #[inline]
+    fn double(&mut self, value: F) -> F
+    where
+        F: Clone,
+    {
+        self.add(value.clone(), value)
+    }
 
     /// Computes the sum over `iter`, returning [`Zero::zero`] if `iter` is empty.
     #[inline]
@@ -248,6 +278,26 @@ where
     }
 }
 
+impl<F> One<F> for ()
+where
+    F: PackedField,
+{
+    #[inline]
+    fn one(&mut self) -> F {
+        F::ONES
+    }
+}
+
+impl<F, const D: usize> One<ExtensionTarget<D>> for CircuitBuilder<F, D>
+where
+    F: RichField + Extendable<D>,
+{
+    #[inline]
+    fn one(&mut self) -> ExtensionTarget<D> {
+        self.one_extension()
+    }
+}
+
 /// Multiplication
 pub trait Mul<F> {
     /// Multiplies `lhs` and `rhs` returning their product.
@@ -296,10 +346,29 @@ where
     }
 }
 
-/// Arithmetic over a Field
-pub trait Arithmetic<F>: Add<F> + Mul<F> + Sub<F> {}
+/* TODO:
+///
+pub trait ArithmeticExtension<T, F> {
+    ///
+    fn arithmetic_extension(&mut self, const_0: T, const_1: T, multiplicand_0: F, multiplicand_1: F, addend: F) -> F;
+}
+*/
 
-impl<F, C> Arithmetic<F> for C where C: Add<F> + Mul<F> + Sub<F> {}
+/// Arithmetic over a Field
+pub trait Arithmetic<F>: Add<F> + Mul<F> + One<F> + Sub<F> + Zero<F> {
+    #[inline]
+    fn xor(&mut self, lhs: F, rhs: F) -> F
+    where
+        F: Clone,
+    {
+        let sum = self.add(lhs.clone(), rhs.clone());
+        let product = self.mul(lhs, rhs);
+        let double_product = self.double(product);
+        self.sub(sum, double_product)
+    }
+}
+
+impl<F, C> Arithmetic<F> for C where C: Add<F> + Mul<F> + One<F> + Sub<F> + Zero<F> {}
 
 /// IR Assertions
 pub trait Assertions<F>: Sized {
@@ -310,6 +379,39 @@ pub trait Assertions<F>: Sized {
         Self: Constraint<F> + Mul<F>,
     {
         Product(lhs).assert_zero_when(rhs, self)
+    }
+
+    ///
+    #[inline]
+    fn assert_boolean(&mut self, value: F)
+    where
+        Self: Constraint<F> + Mul<F> + One<F> + Sub<F>,
+        F: Clone,
+    {
+        let one = self.one();
+        let one_minus_value = self.sub(one, value.clone());
+        self.assert_zero_product(value, one_minus_value)
+    }
+
+    ///
+    #[inline]
+    fn assert_bit_decomposition<B>(&mut self, value: F, bits: B)
+    where
+        Self: Add<F> + Constraint<F> + Mul<F> + One<F> + Sub<F> + Zero<F>,
+        F: Clone,
+        B: IntoIterator<Item = F>,
+    {
+        let one = self.one();
+        let two = self.add(one.clone(), one.clone());
+        let mut addends = vec![];
+        let mut shift = one;
+        for bit in bits {
+            self.assert_boolean(bit.clone());
+            addends.push(self.mul(shift.clone(), bit.clone()));
+            shift = self.mul(two.clone(), shift.clone());
+        }
+        let sum = self.sum(addends);
+        self.assert_eq(value, sum);
     }
 
     ///

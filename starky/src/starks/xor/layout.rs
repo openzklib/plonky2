@@ -3,6 +3,33 @@ use std::mem::transmute;
 
 use crate::util::transmute_no_compile_time_size_checks;
 
+pub struct XorRow<'t, T, const N: usize, const NUM_CHANNELS: usize> {
+    pub a: &'t T,
+    pub b: &'t T,
+    pub output: &'t T,
+    pub a_bits: &'t [T; N],
+    pub b_bits: &'t [T; N],
+    pub channel_filters: &'t [T; NUM_CHANNELS],
+}
+
+impl<'t, T, const N: usize, const NUM_CHANNELS: usize> From<&'t [T]>
+    for XorRow<'t, T, N, NUM_CHANNELS>
+{
+    #[inline]
+    fn from(slice: &'t [T]) -> Self {
+        Self {
+            a: &slice[0],
+            b: &slice[1],
+            output: &slice[2],
+            a_bits: (&slice[3..(N + 3)]).try_into().expect(""),
+            b_bits: (&slice[(N + 3)..(2 * N + 3)]).try_into().expect(""),
+            channel_filters: (&slice[(2 * N + 3)..(2 * N + 3 + NUM_CHANNELS)])
+                .try_into()
+                .expect(""),
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Eq, PartialEq, Debug)]
 pub struct XorLayout<T: Copy, const N: usize, const NUM_CHANNELS: usize> {

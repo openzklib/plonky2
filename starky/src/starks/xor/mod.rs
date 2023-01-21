@@ -10,10 +10,10 @@ use plonky2::hash::hash_types::RichField;
 use plonky2::iop::ext_target::ExtensionTarget;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-use self::layout::XorLayout;
+use self::layout::{XorLayout, XorRow};
 use crate::consumer::basic::{ConstraintConsumer, RecursiveConstraintConsumer};
 use crate::consumer::Compiler;
-use crate::ir::Arithmetic;
+use crate::ir::{Add, Arithmetic, Assertions, Constant, Constraint, Mul, Sub};
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 
 pub mod generation;
@@ -59,8 +59,9 @@ macro_rules! impl_xor_stark_n {
 
         impl<F, C, COM> Stark<F, C, COM> for XorStark<$n, $channels>
         where
+            F: Copy,
             C: StandardConsumer<F, COM>,
-            COM: Arithmetic<F>,
+            COM: Arithmetic<F> + Constant<u64, F>,
         {
             #[inline]
             fn eval(
@@ -68,56 +69,23 @@ macro_rules! impl_xor_stark_n {
                 curr: &[F],
                 next: &[F],
                 public_inputs: &[F],
-                compiler: Compiler<C, COM>,
+                mut compiler: Compiler<C, COM>,
             ) {
-                /*
-                let row: &XorLayout<F, $n, $channels> = curr.borrow();
+                let _ = (next, public_inputs);
 
-                let addends = (0..$n)
-                    .map(|i| {
-                        builder.mul_const_extension(F::from_canonical_u64(1 << i), row.a_bits[i])
-                    })
-                    .collect_vec();
-                let mut c = builder.add_many_extension(addends);
-                c = builder.sub_extension(row.a, c);
-                yield_constr.constraint(builder, c);
+                let row = XorRow::<F, $n, $channels>::from(curr);
 
-                let addends = (0..$n)
-                    .map(|i| {
-                        builder.mul_const_extension(F::from_canonical_u64(1 << i), row.a_bits[i])
-                    })
-                    .collect_vec();
-                let mut c = builder.add_many_extension(addends);
-                c = builder.sub_extension(row.b, c);
-                yield_constr.constraint(builder, c);
+                compiler.assert_bit_decomposition(*row.a, *row.a_bits);
+                compiler.assert_bit_decomposition(*row.b, *row.b_bits);
 
-                let addends = (0..$n)
-                    .map(|i| {
-                        let xor = xor_gen_circuit(builder, row.a_bits[i], row.b_bits[i]);
-                        builder.mul_const_extension(F::from_canonical_u64(1 << i), xor)
-                    })
-                    .collect_vec();
-                let mut c = builder.add_many_extension(addends);
-                c = builder.sub_extension(row.output, c);
-                yield_constr.constraint(builder, c);
+                let output_bits = (0..$n)
+                    .map(|i| compiler.xor(row.a_bits[i], row.b_bits[i]))
+                    .collect::<Vec<_>>();
+                compiler.assert_bit_decomposition(*row.output, output_bits);
 
-                let one_ext = builder.one_extension();
                 for i in 0..$channels {
-                    let mut c = builder.sub_extension(one_ext, row.channel_filters[i]);
-                    c = builder.mul_extension(row.channel_filters[i], c);
-                    yield_constr.constraint(builder, c);
+                    compiler.assert_boolean(row.channel_filters[i]);
                 }
-
-                for i in 0..$n {
-                    let mut c = builder.sub_extension(one_ext, row.a_bits[i]);
-                    c = builder.mul_extension(row.a_bits[i], c);
-                    yield_constr.constraint(builder, c);
-
-                    let mut c = builder.sub_extension(one_ext, row.b_bits[i]);
-                    c = builder.mul_extension(row.b_bits[i], c);
-                    yield_constr.constraint(builder, c);
-                }
-                */
             }
         }
 
