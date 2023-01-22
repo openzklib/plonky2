@@ -5,6 +5,8 @@ extern crate alloc;
 
 mod get_challenges;
 
+pub mod hash;
+pub mod challenger;
 pub mod config;
 pub mod consumer;
 pub mod ir;
