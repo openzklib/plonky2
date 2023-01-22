@@ -8,8 +8,8 @@ use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::config::AlgebraicHasher;
 
-pub(crate) const SPONGE_RATE: usize = 8;
-pub(crate) const SPONGE_CAPACITY: usize = 4;
+pub const SPONGE_RATE: usize = 8;
+pub const SPONGE_CAPACITY: usize = 4;
 pub const SPONGE_WIDTH: usize = SPONGE_RATE + SPONGE_CAPACITY;
 
 impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
