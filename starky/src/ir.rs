@@ -539,3 +539,8 @@ where
     );
 }
 */
+
+pub trait Extension<T, const D: usize> {
+    fn to_basefield_array(&self) -> [T; D];
+    fn from_basefield_array(arr: &[T; D]) -> Self;
+}
