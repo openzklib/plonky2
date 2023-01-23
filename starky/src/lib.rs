@@ -8,6 +8,7 @@ mod get_challenges;
 pub mod config;
 pub mod consumer;
 pub mod ir;
+pub mod lookup;
 pub mod permutation;
 pub mod proof;
 pub mod prover;
