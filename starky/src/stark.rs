@@ -13,7 +13,9 @@ use plonky2::util::ceil_div_usize;
 
 use crate::config::StarkConfig;
 use crate::consumer::{Compiler, Consumer, ConsumerCompiler, FilteredConsumer};
-use crate::ir::{Arithmetic, FirstRow, LastRow, Registers, Transition};
+use crate::ir::{
+    Arithmetic, Constraint, ConstraintFiltered, FirstRow, LastRow, Registers, Transition,
+};
 use crate::permutation::PermutationPair;
 
 /// STARK Configuration
@@ -60,6 +62,23 @@ impl<F, C, COM> StandardConsumer<F, COM> for C where
         + FilteredConsumer<F, Transition, COM>
         + FilteredConsumer<F, FirstRow, COM>
         + FilteredConsumer<F, LastRow, COM>
+{
+}
+
+/// Standard Constraints
+pub trait StandardConstraint<F>:
+    Constraint<F>
+    + ConstraintFiltered<F, Transition>
+    + ConstraintFiltered<F, FirstRow>
+    + ConstraintFiltered<F, LastRow>
+{
+}
+
+impl<F, COM> StandardConstraint<F> for COM where
+    COM: Constraint<F>
+        + ConstraintFiltered<F, Transition>
+        + ConstraintFiltered<F, FirstRow>
+        + ConstraintFiltered<F, LastRow>
 {
 }
 

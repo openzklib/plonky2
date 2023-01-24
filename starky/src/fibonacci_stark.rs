@@ -93,16 +93,16 @@ where
     #[inline]
     fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
         // Constrain Public Inputs
-        compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X0], curr[0]);
-        compiler.assert_eq_first_row(public_inputs[Self::PI_INDEX_X1], curr[1]);
-        compiler.assert_eq_last_row(public_inputs[Self::PI_INDEX_RES], curr[1]);
+        compiler.assert_eq_first_row(&public_inputs[Self::PI_INDEX_X0], &curr[0]);
+        compiler.assert_eq_first_row(&public_inputs[Self::PI_INDEX_X1], &curr[1]);
+        compiler.assert_eq_last_row(&public_inputs[Self::PI_INDEX_RES], &curr[1]);
 
         // Add Fibonacci Terms
-        let sum = compiler.add(curr[0], curr[1]);
+        let sum = compiler.add(&curr[0], &curr[1]);
 
         // Constrain Transition
-        compiler.assert_eq_transition(next[0], curr[1]);
-        compiler.assert_eq_transition(next[1], sum);
+        compiler.assert_eq_transition(&next[0], &curr[1]);
+        compiler.assert_eq_transition(&next[1], &sum);
     }
 }
 

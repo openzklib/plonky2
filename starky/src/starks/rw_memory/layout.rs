@@ -1,11 +1,9 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use core::ops::Index;
 
 use memoffset::offset_of;
 
-// use crate::cross_table_lookup::{CtlColSet, TableID};
-use crate::util::transmute_no_compile_time_size_checks;
+// TODO: use crate::cross_table_lookup::{CtlColSet, TableID};
 
 ///
 pub struct RwMemoryRow<'t, T, const NUM_CHANNELS: usize> {
@@ -74,36 +72,7 @@ impl<'t, T, const NUM_CHANNELS: usize> Index<usize> for RwMemoryRow<'t, T, NUM_C
     }
 }
 
-/*
-
-#[repr(C)]
-#[derive(Eq, PartialEq, Debug)]
-pub struct RwMemoryRow<T: Copy, const NUM_CHANNELS: usize> {
-    // memory cols
-    pub addr: T,
-    pub timestamp: T,
-    pub value: T,
-    pub is_write: T,
-
-    pub addr_sorted: T,
-    pub timestamp_sorted: T,
-    pub value_sorted: T,
-    pub is_write_sorted: T,
-
-    // used for checking timestamp ordering via range check
-    pub timestamp_sorted_diff: T,
-    pub timestamp_sorted_diff_permuted: T,
-
-    // used to range check addresses and timestamp differenes
-    pub timestamp_permuted: T,
-
-    // fitler cols for each lookup channel
-    // >1 channel can be helpful when a STARK only wants to read part of the memory
-    pub filter_cols: [T; NUM_CHANNELS],
-}
-*/
-
-pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
+pub fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
     type R = RwMemoryRow<'static, u8, 0>;
     vec![
         (offset_of!(R, addr), offset_of!(R, addr_sorted)),
@@ -113,7 +82,7 @@ pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
     ]
 }
 
-pub(crate) fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
+pub fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
     vec![(
         offset_of!(RwMemoryRow<u8, 0>, timestamp_sorted_diff),
         offset_of!(RwMemoryRow<u8, 0>, timestamp),

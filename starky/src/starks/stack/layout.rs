@@ -1,11 +1,9 @@
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use core::ops::Index;
 
 use memoffset::offset_of;
 
-// use crate::cross_table_lookup::{CtlColSet, TableID};
-use crate::util::transmute_no_compile_time_size_checks;
+// TODO: use crate::cross_table_lookup::{CtlColSet, TableID};
 
 ///
 pub struct StackRow<'t, T, const NUM_CHANNELS: usize> {
@@ -82,39 +80,7 @@ impl<'t, T, const NUM_CHANNELS: usize> Index<usize> for StackRow<'t, T, NUM_CHAN
     }
 }
 
-/*
-#[repr(C)]
-#[derive(Eq, PartialEq, Debug)]
-pub struct StackRow<T: Copy, const NUM_CHANNELS: usize> {
-    // memory cols
-    pub(crate) addr: T,
-    pub(crate) timestamp: T,
-    pub(crate) value: T,
-    pub(crate) is_write: T,
-
-    pub(crate) addr_sorted: T,
-    pub(crate) timestamp_sorted: T,
-    pub(crate) value_sorted: T,
-    pub(crate) is_write_sorted: T,
-
-    // used for checking timestamp ordering via range check
-    pub(crate) timestamp_sorted_diff: T,
-    pub(crate) timestamp_sorted_diff_permuted: T,
-
-    pub(crate) sp: T,
-    // 1 if the current operation is a pop, 0 if it's a push
-    pub(crate) is_pop: T,
-
-    // used to range check addresses and timestamp differenes
-    pub(crate) timestamp_permuted: T,
-
-    // fitler cols for each lookup channel
-    // >1 channel can be helpful when a STARK only wants to read part of the memory
-    pub(crate) filter_cols: [T; NUM_CHANNELS],
-}
-*/
-
-pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
+pub fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
     vec![
         (
             offset_of!(StackRow<u8, 0>, addr),
@@ -135,7 +101,7 @@ pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
     ]
 }
 
-pub(crate) fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
+pub fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
     vec![(
         offset_of!(StackRow<u8, 0>, timestamp_sorted_diff),
         offset_of!(StackRow<u8, 0>, timestamp),

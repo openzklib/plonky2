@@ -1,15 +1,8 @@
-/// STARK that checks the access trace of a stack
-/// this can be thought of as a form of "offline memory checking"
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-
-use plonky2::field::extension::{Extendable, FieldExtension};
-use plonky2::field::packed::PackedField;
-use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
+//! STARK that checks the access trace of a stack
+//! this can be thought of as a form of "offline memory checking"
 
 use crate::consumer::Compiler;
-use crate::ir::{Add, Arithmetic, Assertions, Constraint, Mul, One, Sub};
+use crate::ir::{Add, Arithmetic, Assertions, Constraint, One, Sub};
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::stack::layout::{
@@ -122,7 +115,7 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = StackStark<F, D, 1>;
+        type S = StackStark<1>;
 
         let stark = S::new();
         test_stark_low_degree(stark)
@@ -133,7 +126,7 @@ mod tests {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
-        type S = StackStark<F, D, 1>;
+        type S = StackStark<1>;
 
         let mut generator = StackGenerator::<F, 1>::new();
         let mut rng = rand::thread_rng();

@@ -1,16 +1,8 @@
 //! STARK that checks the access trace of a read-write memory
 //! this can be thought of as a form of "offline memory checking"
 
-use core::borrow::Borrow;
-use core::marker::PhantomData;
-
-use plonky2::field::extension::{Extendable, FieldExtension};
-use plonky2::field::packed::PackedField;
-use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
-
 use crate::consumer::Compiler;
-use crate::ir::{Arithmetic, Assertions, Mul, One, Sub};
+use crate::ir::{Arithmetic, Assertions, One, Sub};
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::rw_memory::layout::{
@@ -20,6 +12,7 @@ use crate::starks::rw_memory::layout::{
 // TODO: pub mod generation;
 pub mod layout;
 
+/// Read-Write Memory STARK
 #[derive(Default)]
 pub struct RwMemoryStark<const NUM_CHANNELS: usize>;
 
@@ -143,7 +136,7 @@ mod tests {
     use crate::config::StarkConfig;
     use crate::prover::prove_no_ctl;
     use crate::stark_testing::test_stark_low_degree;
-    use crate::starky2lib::rw_memory::generation::RwMemoryGenerator;
+    use crate::starks::rw_memory::generation::RwMemoryGenerator;
     use crate::verifier::verify_stark_proof_no_ctl;
 
     #[test]

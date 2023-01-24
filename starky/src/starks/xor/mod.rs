@@ -1,20 +1,9 @@
-#![allow(clippy::reversed_empty_ranges)]
+//! XOR STARK
 
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-
-use itertools::Itertools;
-use plonky2::field::extension::{Extendable, FieldExtension};
-use plonky2::field::packed::PackedField;
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::ext_target::ExtensionTarget;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
-
-use crate::consumer::basic::{ConstraintConsumer, RecursiveConstraintConsumer};
 use crate::consumer::Compiler;
-use crate::ir::{Add, Arithmetic, Assertions, Constant, Constraint, Mul, Sub};
+use crate::ir::{Arithmetic, Assertions};
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
-use crate::starks::xor::layout::XorRow;
+use crate::starks::xor::layout::Row;
 
 // TODO: pub mod generation;
 pub mod layout;
@@ -22,23 +11,6 @@ pub mod layout;
 /// N-bit XOR up to 63 bits;
 #[derive(Default)]
 pub struct XorStark<const N: usize, const NUM_CHANNELS: usize>;
-
-/*
-/// Computes the arithmetic generalization of `xor(x, y)`, i.e. `x + y - 2 x y`.
-pub(crate) fn xor_gen<P: PackedField>(x: P, y: P) -> P {
-    x + y - x * y.doubles()
-}
-
-/// Computes the arithmetic generalization of `xor(x, y)`, i.e. `x + y - 2 x y`.
-pub(crate) fn xor_gen_circuit<F: RichField + Extendable<D>, const D: usize>(
-    builder: &mut CircuitBuilder<F, D>,
-    x: ExtensionTarget<D>,
-    y: ExtensionTarget<D>,
-) -> ExtensionTarget<D> {
-    let sum = builder.add_extension(x, y);
-    builder.arithmetic_extension(-F::TWO, F::ONE, x, y, sum)
-}
-*/
 
 impl<const N: usize, const NUM_CHANNELS: usize> StarkConfiguration for XorStark<N, NUM_CHANNELS> {
     #[inline]
@@ -67,7 +39,7 @@ where
     #[inline]
     fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
         let _ = (next, public_inputs);
-        let row = XorRow::<F, N, NUM_CHANNELS>::from(curr);
+        let row = Row::<F, N, NUM_CHANNELS>::from(curr);
 
         compiler.assert_bit_decomposition(row.a, row.a_bits);
         compiler.assert_bit_decomposition(row.b, row.b_bits);
