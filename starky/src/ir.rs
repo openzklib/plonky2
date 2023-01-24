@@ -434,6 +434,26 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_zero_product_transition(&mut self, lhs: F, rhs: F)
+    where
+        Self: ConstraintFiltered<F, Transition> + Mul<F>,
+    {
+        let product = self.mul(lhs, rhs);
+        self.assert_zero_transition(product);
+    }
+
+    ///
+    #[inline]
+    fn assert_increments_by(&mut self, curr: F, next: F, step: F)
+    where
+        Self: ConstraintFiltered<F, Transition> + Sub<F>,
+    {
+        let diff = self.sub(curr, next);
+        self.assert_eq_transition(diff, step);
+    }
+
+    ///
+    #[inline]
     fn assert_zero_first_row(&mut self, value: F)
     where
         Self: ConstraintFiltered<F, FirstRow>,
@@ -488,6 +508,26 @@ pub trait Assertions<F>: Sized {
         // row is the first row.
         self.assert_zero_last_row(diff_input_table);
     }
+
+    ///
+    #[inline]
+    fn when(&mut self, condition: F) -> Branch<F, Self> {
+        Branch {
+            condition,
+            compiler: self,
+        }
+    }
+
+    ///
+    #[inline]
+    fn when_all<I>(&mut self, conditions: I) -> Branch<F, Self>
+    where
+        Self: Mul<F> + One<F>,
+        I: IntoIterator<Item = F>,
+    {
+        let condition = self.product(conditions);
+        self.when(condition)
+    }
 }
 
 impl<F, COM> Assertions<F> for COM {}
@@ -509,6 +549,89 @@ pub struct Registers<'t, T> {
 
     /// Public Inputs
     pub public_inputs: &'t [T],
+}
+
+/// Branching Compiler
+pub struct Branch<'t, F, COM> {
+    /// Condition
+    condition: F,
+
+    /// Base Compiler
+    compiler: &'t mut COM,
+}
+
+impl<'t, F, COM> Add<F> for Branch<'t, F, COM>
+where
+    COM: Add<F>,
+{
+    #[inline]
+    fn add(&mut self, lhs: F, rhs: F) -> F {
+        self.compiler.add(lhs, rhs)
+    }
+}
+
+impl<'t, F, COM> Sub<F> for Branch<'t, F, COM>
+where
+    COM: Sub<F>,
+{
+    #[inline]
+    fn sub(&mut self, lhs: F, rhs: F) -> F {
+        self.compiler.sub(lhs, rhs)
+    }
+}
+
+impl<'t, F, COM> Zero<F> for Branch<'t, F, COM>
+where
+    COM: Zero<F>,
+{
+    #[inline]
+    fn zero(&mut self) -> F {
+        self.compiler.zero()
+    }
+}
+
+impl<'t, F, COM> Mul<F> for Branch<'t, F, COM>
+where
+    COM: Mul<F>,
+{
+    #[inline]
+    fn mul(&mut self, lhs: F, rhs: F) -> F {
+        self.compiler.mul(lhs, rhs)
+    }
+}
+
+impl<'t, F, COM> One<F> for Branch<'t, F, COM>
+where
+    COM: One<F>,
+{
+    #[inline]
+    fn one(&mut self) -> F {
+        self.compiler.one()
+    }
+}
+
+impl<'t, F, COM> Constraint<F> for Branch<'t, F, COM>
+where
+    F: Clone,
+    COM: Constraint<F> + Mul<F>,
+{
+    #[inline]
+    fn assert_zero(&mut self, value: F) {
+        let filtered_value = self.compiler.mul(self.condition.clone(), value);
+        self.compiler.assert_zero(filtered_value);
+    }
+}
+
+impl<'t, F, Filter, COM> ConstraintFiltered<F, Filter> for Branch<'t, F, COM>
+where
+    F: Clone,
+    COM: ConstraintFiltered<F, Filter> + Mul<F>,
+{
+    #[inline]
+    fn assert_zero_when(&mut self, filter: Filter, value: F) {
+        let filtered_value = self.compiler.mul(self.condition.clone(), value);
+        self.compiler.assert_zero_when(filter, filtered_value);
+    }
 }
 
 /* TODO:
