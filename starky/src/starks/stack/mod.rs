@@ -94,26 +94,20 @@ macro_rules! impl_stack_stark_for_n_channels {
 
                 compiler
                     .when(*curr.is_pop)
-                    .assert_eq(*curr.addr, sp_sub_one);
-
-                compiler
-                    .when(*curr.is_pop)
-                    .assert_eq_transition(*next.sp, sp_sub_one);
-
-                compiler.when(*curr.is_pop).assert_zero(*curr.is_write);
+                    .assert_eq(*curr.addr, sp_sub_one)
+                    .assert_eq_transition(*next.sp, sp_sub_one)
+                    .assert_zero(*curr.is_write);
 
                 // if the current operation is a push, the following should be true:
                 // 1. addr should be sp
                 // 2. next sp should be sp + 1
                 // 3. is_write should be 1
 
-                compiler.when(is_push).assert_eq(*curr.addr, *curr.sp);
-
                 compiler
                     .when(is_push)
-                    .assert_eq_transition(*next.sp, sp_add_one);
-
-                compiler.when(is_push).assert_one(*curr.is_write);
+                    .assert_eq(*curr.addr, *curr.sp)
+                    .assert_eq_transition(*next.sp, sp_add_one)
+                    .assert_one(*curr.is_write);
             }
         }
 

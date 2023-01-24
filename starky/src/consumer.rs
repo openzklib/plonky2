@@ -112,8 +112,9 @@ where
     C: Consumer<F, COM>,
 {
     #[inline]
-    fn assert_zero(&mut self, value: F) {
-        self.consumer.constraint(value, self.compiler)
+    fn assert_zero(&mut self, value: F) -> &mut Self {
+        self.consumer.constraint(value, self.compiler);
+        self
     }
 }
 
@@ -122,9 +123,10 @@ where
     C: FilteredConsumer<F, Filter, COM>,
 {
     #[inline]
-    fn assert_zero_when(&mut self, filter: Filter, value: F) {
+    fn assert_zero_when(&mut self, filter: Filter, value: F) -> &mut Self {
         self.consumer
             .constraint_filtered(filter, value, self.compiler);
+        self
     }
 }
 

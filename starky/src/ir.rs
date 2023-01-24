@@ -12,26 +12,26 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 /// Constraint
 pub trait Constraint<F> {
     /// Asserts that `value == 0`.
-    fn assert_zero(&mut self, value: F);
+    fn assert_zero(&mut self, value: F) -> &mut Self;
 
     /// Asserts that `lhs == rhs` by subtracting them and calling [`Self::assert_zero`].
     #[inline]
-    fn assert_eq(&mut self, lhs: F, rhs: F)
+    fn assert_eq(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: Sub<F>,
     {
         let diff = self.sub(lhs, rhs);
-        self.assert_zero(diff);
+        self.assert_zero(diff)
     }
 
     /// Asserts that `value == 1`.
     #[inline]
-    fn assert_one(&mut self, value: F)
+    fn assert_one(&mut self, value: F) -> &mut Self
     where
         Self: Sub<F> + One<F>,
     {
         let one = self.one();
-        self.assert_eq(value, one);
+        self.assert_eq(value, one)
     }
 }
 
@@ -40,35 +40,36 @@ where
     C: Constraint<F>,
 {
     #[inline]
-    fn assert_zero(&mut self, value: F) {
-        (**self).assert_zero(value)
+    fn assert_zero(&mut self, value: F) -> &mut Self {
+        (**self).assert_zero(value);
+        self
     }
 }
 
 /// Constraint Filtered
 pub trait ConstraintFiltered<F, Filter> {
     /// Asserts that `value == 0` whenever the `filter` is true.
-    fn assert_zero_when(&mut self, filter: Filter, value: F);
+    fn assert_zero_when(&mut self, filter: Filter, value: F) -> &mut Self;
 
     /// Asserts that `lhs == rhs` whenever the `filter` is true by subtracting them and calling
     /// [`Self::assert_zero_when`].
     #[inline]
-    fn assert_eq_when(&mut self, filter: Filter, lhs: F, rhs: F)
+    fn assert_eq_when(&mut self, filter: Filter, lhs: F, rhs: F) -> &mut Self
     where
         Self: Sub<F>,
     {
         let diff = self.sub(lhs, rhs);
-        self.assert_zero_when(filter, diff);
+        self.assert_zero_when(filter, diff)
     }
 
     /// Asserts that `value == 1` whenever the `filter` is true.
     #[inline]
-    fn assert_one_when(&mut self, filter: Filter, value: F)
+    fn assert_one_when(&mut self, filter: Filter, value: F) -> &mut Self
     where
         Self: Sub<F> + One<F>,
     {
         let one = self.one();
-        self.assert_eq_when(filter, value, one);
+        self.assert_eq_when(filter, value, one)
     }
 }
 
@@ -87,7 +88,7 @@ where
 {
     #[inline]
     fn assert_zero_when(self, value: F, consumer: &mut C) {
-        consumer.assert_zero(value)
+        consumer.assert_zero(value);
     }
 }
 
@@ -240,12 +241,6 @@ where
     }
 }
 
-/// Negation
-pub trait Neg<F> {
-    /// Returns the negation of `value`.
-    fn neg(&mut self, value: F) -> F;
-}
-
 /// Subtraction
 pub trait Sub<F> {
     /// Subtracts `lhs` and `rhs` returning their difference.
@@ -394,16 +389,17 @@ impl<F, C> Arithmetic<F> for C where C: Add<F> + Mul<F> + One<F> + Sub<F> + Zero
 pub trait Assertions<F>: Sized {
     ///
     #[inline]
-    fn assert_zero_product(&mut self, lhs: F, rhs: F)
+    fn assert_zero_product(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: Constraint<F> + Mul<F>,
     {
-        Product(lhs).assert_zero_when(rhs, self)
+        Product(lhs).assert_zero_when(rhs, self);
+        self
     }
 
     ///
     #[inline]
-    fn assert_boolean(&mut self, value: F)
+    fn assert_boolean(&mut self, value: F) -> &mut Self
     where
         Self: Constraint<F> + Mul<F> + One<F> + Sub<F>,
         F: Clone,
@@ -415,7 +411,7 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
-    fn assert_bit_decomposition<B>(&mut self, value: F, bits: B)
+    fn assert_bit_decomposition<B>(&mut self, value: F, bits: B) -> &mut Self
     where
         Self: Add<F> + Constraint<F> + Mul<F> + One<F> + Sub<F> + Zero<F>,
         F: Clone,
@@ -431,86 +427,86 @@ pub trait Assertions<F>: Sized {
             shift = self.mul(two.clone(), shift.clone());
         }
         let sum = self.sum(addends);
-        self.assert_eq(value, sum);
+        self.assert_eq(value, sum)
     }
 
     ///
     #[inline]
-    fn assert_zero_transition(&mut self, value: F)
+    fn assert_zero_transition(&mut self, value: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition>,
     {
-        self.assert_zero_when(Transition, value);
+        self.assert_zero_when(Transition, value)
     }
 
     ///
     #[inline]
-    fn assert_eq_transition(&mut self, lhs: F, rhs: F)
+    fn assert_eq_transition(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition> + Sub<F>,
     {
-        self.assert_eq_when(Transition, lhs, rhs);
+        self.assert_eq_when(Transition, lhs, rhs)
     }
 
     ///
     #[inline]
-    fn assert_zero_product_transition(&mut self, lhs: F, rhs: F)
+    fn assert_zero_product_transition(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition> + Mul<F>,
     {
         let product = self.mul(lhs, rhs);
-        self.assert_zero_transition(product);
+        self.assert_zero_transition(product)
     }
 
     ///
     #[inline]
-    fn assert_increments_by(&mut self, curr: F, next: F, step: F)
+    fn assert_increments_by(&mut self, curr: F, next: F, step: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition> + Sub<F>,
     {
         let diff = self.sub(curr, next);
-        self.assert_eq_transition(diff, step);
+        self.assert_eq_transition(diff, step)
     }
 
     ///
     #[inline]
-    fn assert_zero_first_row(&mut self, value: F)
+    fn assert_zero_first_row(&mut self, value: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, FirstRow>,
     {
-        self.assert_zero_when(FirstRow, value);
+        self.assert_zero_when(FirstRow, value)
     }
 
     ///
     #[inline]
-    fn assert_eq_first_row(&mut self, lhs: F, rhs: F)
+    fn assert_eq_first_row(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, FirstRow> + Sub<F>,
     {
-        self.assert_eq_when(FirstRow, lhs, rhs);
+        self.assert_eq_when(FirstRow, lhs, rhs)
     }
 
     ///
     #[inline]
-    fn assert_zero_last_row(&mut self, value: F)
+    fn assert_zero_last_row(&mut self, value: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, LastRow>,
     {
-        self.assert_zero_when(LastRow, value);
+        self.assert_zero_when(LastRow, value)
     }
 
     ///
     #[inline]
-    fn assert_eq_last_row(&mut self, lhs: F, rhs: F)
+    fn assert_eq_last_row(&mut self, lhs: F, rhs: F) -> &mut Self
     where
         Self: ConstraintFiltered<F, LastRow> + Sub<F>,
     {
-        self.assert_eq_when(LastRow, lhs, rhs);
+        self.assert_eq_when(LastRow, lhs, rhs)
     }
 
     ///
     #[inline]
-    fn assert_lookup(&mut self, curr_input: F, next_input: F, next_table: F)
+    fn assert_lookup(&mut self, curr_input: F, next_input: F, next_table: F) -> &mut Self
     where
         F: Clone,
         Self: Constraint<F> + ConstraintFiltered<F, LastRow> + Mul<F> + Sub<F>,
@@ -526,7 +522,7 @@ pub trait Assertions<F>: Sized {
         // This is actually constraining the first row, as per the spec, since `diff_input_table`
         // is a diff of the next row's values. In the context of `constraint_last_row`, the next
         // row is the first row.
-        self.assert_zero_last_row(diff_input_table);
+        self.assert_zero_last_row(diff_input_table)
     }
 
     ///
@@ -636,9 +632,10 @@ where
     COM: Constraint<F> + Mul<F>,
 {
     #[inline]
-    fn assert_zero(&mut self, value: F) {
+    fn assert_zero(&mut self, value: F) -> &mut Self {
         let filtered_value = self.compiler.mul(self.condition.clone(), value);
         self.compiler.assert_zero(filtered_value);
+        self
     }
 }
 
@@ -648,9 +645,10 @@ where
     COM: ConstraintFiltered<F, Filter> + Mul<F>,
 {
     #[inline]
-    fn assert_zero_when(&mut self, filter: Filter, value: F) {
+    fn assert_zero_when(&mut self, filter: Filter, value: F) -> &mut Self {
         let filtered_value = self.compiler.mul(self.condition.clone(), value);
         self.compiler.assert_zero_when(filter, filtered_value);
+        self
     }
 }
 
