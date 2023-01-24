@@ -85,7 +85,6 @@ where
                 &trace_poly_values,
                 &permutation_challenge_sets,
             );
-
             let permutation_zs_commitment = timed!(
                 timing,
                 "compute permutation Z commitments",

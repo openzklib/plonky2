@@ -144,7 +144,7 @@ impl StarkMetadata {
     ///
     #[inline]
     pub fn uses_permutation_args(&self) -> bool {
-        self.permutation_pairs == 0
+        self.permutation_pairs != 0
     }
 
     ///

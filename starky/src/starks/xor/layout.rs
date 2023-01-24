@@ -1,28 +1,97 @@
 //! XOR Layout
 
-pub struct Row<'t, T, const N: usize, const NUM_CHANNELS: usize> {
-    pub a: &'t T,
-    pub b: &'t T,
-    pub output: &'t T,
-    pub a_bits: &'t [T; N],
-    pub b_bits: &'t [T; N],
-    pub channel_filters: &'t [T; NUM_CHANNELS],
+use crate::ir::{Arithmetic, Assertions, Constraint};
+
+/// Bits Values
+#[repr(C)]
+pub struct Bits<T, const N: usize> {
+    /// Value
+    pub value: T,
+
+    /// Bit Decomposition
+    pub bits: [T; N],
 }
 
-impl<'t, T, const N: usize, const NUM_CHANNELS: usize> From<&'t [T]>
-    for Row<'t, T, N, NUM_CHANNELS>
+impl<T, const N: usize> Bits<T, N> {
+    /// Asserts that `self` is a valid bit-decomposition.
+    #[inline]
+    pub fn assert_valid<COM>(&self, compiler: &mut COM)
+    where
+        COM: Arithmetic<T> + Constraint<T>,
+    {
+        compiler.assert_bit_decomposition(&self.value, &self.bits);
+    }
+}
+
+impl<T, const N: usize> Default for Bits<T, N>
+where
+    T: Copy + Default,
 {
     #[inline]
-    fn from(slice: &'t [T]) -> Self {
+    fn default() -> Self {
         Self {
-            a: &slice[0],
-            b: &slice[1],
-            output: &slice[2],
-            a_bits: (&slice[3..(N + 3)]).try_into().expect(""),
-            b_bits: (&slice[(N + 3)..(2 * N + 3)]).try_into().expect(""),
-            channel_filters: (&slice[(2 * N + 3)..(2 * N + 3 + NUM_CHANNELS)])
-                .try_into()
-                .expect(""),
+            value: Default::default(),
+            bits: [Default::default(); N],
+        }
+    }
+}
+
+/// XOR Row
+#[repr(C)]
+pub struct Row<T, const N: usize, const CHANNELS: usize> {
+    /// LHS Input
+    pub lhs: Bits<T, N>,
+
+    /// RHS Input
+    pub rhs: Bits<T, N>,
+
+    /// XOR Output
+    pub output: T,
+
+    /// Channel Filters
+    pub channel_filters: [T; CHANNELS],
+}
+
+impl<T, const N: usize, const CHANNELS: usize> Row<T, N, CHANNELS> {
+    /// Row Size
+    pub const SIZE: usize = core::mem::size_of::<Row<u8, N, CHANNELS>>();
+
+    /// Builds a [`Row`] from a `slice` of the right size.
+    #[inline]
+    pub fn build(slice: &[T]) -> &Self {
+        if slice.len() != Self::SIZE {
+            panic!("Size Mismatch");
+        }
+        unsafe { crate::util::transmute_no_compile_time_size_checks(slice) }
+    }
+
+    /// Returns `self` as a slice.
+    #[inline]
+    pub fn as_slice(&self) -> &[T] {
+        unsafe { crate::util::transmute_no_compile_time_size_checks(self) }
+    }
+}
+
+impl<T, const N: usize, const CHANNELS: usize> From<Row<T, N, CHANNELS>>
+    for [T; Row::<T, N, CHANNELS>::SIZE]
+{
+    #[inline]
+    fn from(row: Row<T, N, CHANNELS>) -> Self {
+        unsafe { crate::util::transmute_no_compile_time_size_checks(row) }
+    }
+}
+
+impl<T, const N: usize, const CHANNELS: usize> Default for Row<T, N, CHANNELS>
+where
+    T: Copy + Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self {
+            lhs: Default::default(),
+            rhs: Default::default(),
+            output: Default::default(),
+            channel_filters: [Default::default(); CHANNELS],
         }
     }
 }

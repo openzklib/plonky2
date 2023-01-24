@@ -1,14 +1,13 @@
-use std::borrow::{Borrow, BorrowMut};
+use core::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
-use plonky2::field::{
-    polynomial::PolynomialValues,
-    types::{Field, PrimeField64},
-};
+use plonky2::field::polynomial::PolynomialValues;
+use plonky2::field::types::{Field, PrimeField64};
 use plonky2_util::log2_ceil;
 
 use super::layout::*;
-use crate::{lookup::permuted_cols, util::trace_rows_to_poly_values};
+use crate::lookup::permuted_cols;
+use crate::util::trace_rows_to_poly_values;
 
 pub struct RwMemoryGenerator<F: Field, const NUM_CHANNELS: usize>
 where

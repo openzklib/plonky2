@@ -364,6 +364,27 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_bit_decomposition_with_unchecked_bits<B>(&mut self, value: &F, bits: B) -> &mut Self
+    where
+        Self: Add<F> + Constraint<F> + Mul<F> + One<F> + Sub<F> + Zero<F>,
+        B: IntoIterator,
+        B::Item: Borrow<F>,
+    {
+        let one = self.one();
+        let two = self.add(&one, &one);
+        let mut addends = vec![];
+        let mut shift = one;
+        for bit in bits {
+            let bit = bit.borrow();
+            addends.push(self.mul(&shift, bit));
+            shift = self.mul(&two, &shift);
+        }
+        let sum = self.sum(addends);
+        self.assert_eq(value, &sum)
+    }
+
+    ///
+    #[inline]
     fn assert_zero_transition(&mut self, value: &F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition>,

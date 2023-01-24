@@ -5,17 +5,17 @@ use crate::ir::{Arithmetic, Assertions};
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::xor::layout::Row;
 
-// TODO: pub mod generation;
+pub mod generation;
 pub mod layout;
 
 /// N-bit XOR up to 63 bits;
-#[derive(Default)]
-pub struct XorStark<const N: usize, const NUM_CHANNELS: usize>;
+#[derive(Copy, Clone, Default)]
+pub struct XorStark<const N: usize, const CHANNELS: usize>;
 
-impl<const N: usize, const NUM_CHANNELS: usize> StarkConfiguration for XorStark<N, NUM_CHANNELS> {
+impl<const N: usize, const CHANNELS: usize> StarkConfiguration for XorStark<N, CHANNELS> {
     #[inline]
     fn columns(&self) -> usize {
-        3 + 2 * N + NUM_CHANNELS
+        Row::<(), N, CHANNELS>::SIZE
     }
 
     #[inline]
@@ -29,8 +29,7 @@ impl<const N: usize, const NUM_CHANNELS: usize> StarkConfiguration for XorStark<
     }
 }
 
-impl<F, C, COM, const N: usize, const NUM_CHANNELS: usize> Stark<F, C, COM>
-    for XorStark<N, NUM_CHANNELS>
+impl<F, C, COM, const N: usize, const CHANNELS: usize> Stark<F, C, COM> for XorStark<N, CHANNELS>
 where
     F: Copy,
     C: StandardConsumer<F, COM>,
@@ -39,17 +38,20 @@ where
     #[inline]
     fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
         let _ = (next, public_inputs);
-        let row = Row::<F, N, NUM_CHANNELS>::from(curr);
 
-        compiler.assert_bit_decomposition(row.a, row.a_bits);
-        compiler.assert_bit_decomposition(row.b, row.b_bits);
+        let row = Row::<F, N, CHANNELS>::build(curr);
+
+        row.lhs.assert_valid(&mut compiler);
+        row.rhs.assert_valid(&mut compiler);
 
         let output_bits = (0..N)
-            .map(|i| compiler.xor(&row.a_bits[i], &row.b_bits[i]))
+            .map(|i| compiler.xor(&row.lhs.bits[i], &row.rhs.bits[i]))
             .collect::<Vec<_>>();
-        compiler.assert_bit_decomposition(row.output, output_bits);
 
-        for i in 0..NUM_CHANNELS {
+        // NOTE: If we use `assert_bit_decomposition` the degree is too high.
+        compiler.assert_bit_decomposition_with_unchecked_bits(&row.output, output_bits);
+
+        for i in 0..CHANNELS {
             compiler.assert_boolean(&row.channel_filters[i]);
         }
     }
@@ -62,10 +64,11 @@ mod tests {
     use plonky2::util::timing::TimingTree;
     use rand::Rng;
 
-    use super::generation::XorGenerator;
+    use super::generation::Generator;
     use super::*;
     use crate::config::StarkConfig;
     use crate::prover::prove;
+    use crate::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
     use crate::verifier::verify_stark_proof;
 
     macro_rules! test_xor {
@@ -78,20 +81,28 @@ mod tests {
                     type F = <C as GenericConfig<D>>::F;
                     type S = XorStark<$n, 1>;
 
+                    let config = StarkConfig::standard_fast_config();
+                    let stark = S::default();
+                    let metadata = stark.metadata();
+                    test_stark_low_degree::<F, _, D>(stark, metadata.columns, metadata.public_inputs)?;
+                    test_stark_circuit_constraints::<F, C, S, D>(
+                        stark,
+                        metadata.columns,
+                        metadata.public_inputs,
+                    )?;
+
                     let mut rng = rand::thread_rng();
-                    let mut generator = XorGenerator::<F, $n, 1>::new();
+                    let mut generator = Generator::<F, $n, 1>::new();
                     for _ in 0..32 {
                         let a = rng.gen_range(0..(1 << $n));
                         let b = rng.gen_range(0..(1 << $n));
                         generator.gen_op(a, b, 0);
                     }
 
-                    let config = StarkConfig::standard_fast_config();
-                    let stark = S::default();
                     let trace = generator.into_polynomial_values();
                     let mut timing = TimingTree::default();
-                    let proof = prove::<F, C, S, D>(&stark, &config, &trace, [], &mut timing)?;
-                    verify_stark_proof(&stark, proof, &config)
+                    let proof = prove::<F, C, S, D>(stark, &config, trace, vec![], &mut timing)?;
+                    verify_stark_proof(stark, proof, &config)
                 }
             }
         };
@@ -103,5 +114,5 @@ mod tests {
     test_xor!(12, test_xor_12);
     test_xor!(16, test_xor_16);
     test_xor!(32, test_xor_32);
-    test_xor!(63, test_xor_64);
+    test_xor!(63, test_xor_63);
 }

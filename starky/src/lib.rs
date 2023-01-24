@@ -1,4 +1,8 @@
+//! STARKs!
+
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 extern crate alloc;
 
