@@ -136,15 +136,12 @@ pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
 }
 
 pub(crate) fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
-    vec![
-        // (timestamp_sorted_diff, timestamp, timestamp_sorted_diff_permuted, timestamp_permuted)
-        (
-            offset_of!(StackRow<u8, 0>, timestamp_sorted_diff),
-            offset_of!(StackRow<u8, 0>, timestamp),
-            offset_of!(StackRow<u8, 0>, timestamp_sorted_diff_permuted),
-            offset_of!(StackRow<u8, 0>, timestamp_permuted),
-        ),
-    ]
+    vec![(
+        offset_of!(StackRow<u8, 0>, timestamp_sorted_diff),
+        offset_of!(StackRow<u8, 0>, timestamp),
+        offset_of!(StackRow<u8, 0>, timestamp_sorted_diff_permuted),
+        offset_of!(StackRow<u8, 0>, timestamp_permuted),
+    )]
 }
 
 /*
@@ -165,83 +162,3 @@ pub fn ctl_cols<const NUM_CHANNELS: usize>(tid: TableID) -> impl Iterator<Item =
 */
 
 pub(crate) const STACK_NUM_COLS_BASE: usize = size_of::<StackRow<u8, 0>>();
-
-/*
-impl<T: Copy + Default, const NUM_CHANNELS: usize> StackRow<T, NUM_CHANNELS>
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    pub fn new() -> Self {
-        [T::default(); STACK_NUM_COLS_BASE + NUM_CHANNELS].into()
-    }
-}
-
-impl<T: Copy + Default, const NUM_CHANNELS: usize> Default for StackRow<T, NUM_CHANNELS>
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> From<[T; STACK_NUM_COLS_BASE + NUM_CHANNELS]>
-    for StackRow<T, NUM_CHANNELS>
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn from(value: [T; STACK_NUM_COLS_BASE + NUM_CHANNELS]) -> Self {
-        unsafe { transmute_no_compile_time_size_checks(value) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> From<StackRow<T, NUM_CHANNELS>>
-    for [T; STACK_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn from(value: StackRow<T, NUM_CHANNELS>) -> Self {
-        unsafe { transmute_no_compile_time_size_checks(value) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> Borrow<StackRow<T, NUM_CHANNELS>>
-    for [T; STACK_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow(&self) -> &StackRow<T, NUM_CHANNELS> {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> BorrowMut<StackRow<T, NUM_CHANNELS>>
-    for [T; STACK_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow_mut(&mut self) -> &mut StackRow<T, NUM_CHANNELS> {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> Borrow<[T; STACK_NUM_COLS_BASE + NUM_CHANNELS]>
-    for StackRow<T, NUM_CHANNELS>
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow(&self) -> &[T; STACK_NUM_COLS_BASE + NUM_CHANNELS] {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> BorrowMut<[T; STACK_NUM_COLS_BASE + NUM_CHANNELS]>
-    for StackRow<T, NUM_CHANNELS>
-where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow_mut(&mut self) -> &mut [T; STACK_NUM_COLS_BASE + NUM_CHANNELS] {
-        unsafe { transmute(self) }
-    }
-}
-*/

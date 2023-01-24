@@ -30,6 +30,8 @@ impl<'t, T, const N: usize, const NUM_CHANNELS: usize> From<&'t [T]>
     }
 }
 
+/*
+
 #[repr(C)]
 #[derive(Eq, PartialEq, Debug)]
 pub struct XorLayout<T: Copy, const N: usize, const NUM_CHANNELS: usize> {
@@ -114,3 +116,5 @@ impl<T: Copy, const N: usize, const NUM_CHANNELS: usize> BorrowMut<XorLayout<T, 
         unsafe { transmute(self) }
     }
 }
+
+*/

@@ -23,231 +23,85 @@ pub mod layout;
 #[derive(Default)]
 pub struct StackStark<const NUM_CHANNELS: usize>;
 
-macro_rules! impl_stack_stark_for_n_channels {
-    ($channels:expr) => {
-        impl<const NUM_CHANNELS: usize> StarkConfiguration for StackStark<NUM_CHANNELS> {
-            #[inline]
-            fn columns(&self) -> usize {
-                STACK_NUM_COLS_BASE + $channels
-            }
+impl<const NUM_CHANNELS: usize> StarkConfiguration for StackStark<NUM_CHANNELS> {
+    #[inline]
+    fn columns(&self) -> usize {
+        STACK_NUM_COLS_BASE + NUM_CHANNELS
+    }
 
-            #[inline]
-            fn public_inputs(&self) -> usize {
-                0
-            }
+    #[inline]
+    fn public_inputs(&self) -> usize {
+        0
+    }
 
-            #[inline]
-            fn constraint_degree(&self) -> usize {
-                3
-            }
+    #[inline]
+    fn constraint_degree(&self) -> usize {
+        3
+    }
 
-            #[inline]
-            fn permutation_pairs(&self) -> Vec<PermutationPair> {
-                vec![PermutationPair {
-                    column_pairs: sorted_access_permutation_pairs(),
-                }]
-            }
-        }
-
-        impl<F, C, COM, const NUM_CHANNELS: usize> Stark<F, C, COM> for StackStark<NUM_CHANNELS>
-        where
-            F: Copy,
-            C: StandardConsumer<F, COM>,
-            COM: Arithmetic<F>,
-        {
-            #[inline]
-            fn eval(
-                &self,
-                curr: &[F],
-                next: &[F],
-                public_inputs: &[F],
-                mut compiler: Compiler<C, COM>,
-            ) {
-                let _ = public_inputs;
-                let curr = StackRow::<F, $channels>::from(curr);
-                let next = StackRow::<F, $channels>::from(next);
-
-                let one = compiler.one();
-
-                let is_push = compiler.sub(one, *curr.is_pop);
-                let sp_add_one = compiler.add(*curr.sp, one);
-                let sp_sub_one = compiler.sub(*curr.sp, one);
-
-                /* FIXME: Embedd RW-Memory STARK */
-
-                // STACK SEMANTICS
-
-                // check that is_pop is binary (only operations are pop and push)
-                compiler.assert_boolean(*curr.is_pop);
-
-                // check SP starts at 0
-                compiler.assert_zero_first_row(*curr.sp);
-
-                // if the current operation is a pop, the following should be true:
-                //
-                // 1. addr should be sp - 1
-                // 2. next sp should be sp - 1
-                // 3. is_write should be 0
-                //
-                // a corrolary of this is stack underflows (pop when sp is 0) can't
-                // happen since then the addresses wouldn't satisfy the continuity requirement.
-
-                compiler
-                    .when(*curr.is_pop)
-                    .assert_eq(*curr.addr, sp_sub_one)
-                    .assert_eq_transition(*next.sp, sp_sub_one)
-                    .assert_zero(*curr.is_write);
-
-                // if the current operation is a push, the following should be true:
-                // 1. addr should be sp
-                // 2. next sp should be sp + 1
-                // 3. is_write should be 1
-
-                compiler
-                    .when(is_push)
-                    .assert_eq(*curr.addr, *curr.sp)
-                    .assert_eq_transition(*next.sp, sp_add_one)
-                    .assert_one(*curr.is_write);
-            }
-        }
-
-        /*
-        impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D>
-            for StackStark<F, D, $channels>
-        {
-            const COLUMNS: usize = STACK_NUM_COLS_BASE + $channels;
-            const PUBLIC_INPUTS: usize = 0;
-
-            fn eval_packed_generic<FE, P, const D2: usize>(
-                &self,
-                vars: StarkEvaluationVars<FE, P, { Self::COLUMNS }, { Self::PUBLIC_INPUTS }>,
-                yield_constr: &mut ConstraintConsumer<P>,
-            ) where
-                FE: FieldExtension<D2, BaseField = F>,
-                P: PackedField<Scalar = FE>,
-            {
-                let curr_row: &StackRow<P, $channels> = vars.local_values.borrow();
-                let next_row: &StackRow<P, $channels> = vars.next_values.borrow();
-
-                // MEMORY SEMANTICS
-
-                // check sorted addresses are monotonic, continuous, and start at 0
-                // we do this by ensuring either the sorted address increases by 0 or 1 at each curr_row and at the first curr_row, the sorted addr is 0
-                // degree 2
-                yield_constr.constraint_transition(
-                    (next_row.addr_sorted - curr_row.addr_sorted)
-                        * (next_row.addr_sorted - curr_row.addr_sorted - P::ONES),
-                );
-                // degree 1
-                yield_constr.constraint_first_row(curr_row.addr_sorted);
-
-                // check timestamps are increasing using a range check
-                // this works as follows:
-                // 1. we range check every timestamp to be in [1..num_rows].
-                // 2. we range check the *difference* between the current and next timestamp to be in [1..num_rows] if address hasn't changed (i.e. we only care about timestamps for a particular address)
-                // 3. this is enough. Let x, y be subsequent timestamps for a given address. x, y, and y - x are all in [1..num_rows]. Suppose "x > y" in the field. Then y - x > num_rows -><-
-                // this argument works as long as the number of rows is less than half of the field order, which is very true for this library because we can only use up to 2^TWO_ADICITY rows and this is usually far below the field size.
-                // we do this by enforcing the "unsorted" timestamps start at 1 and increment by 1 each row. Then we apply a lookup against that col to check that the timestamp diffs are in [1..num_rows]
-                // since timestamp_sorted is a permutation of timestamp, timestamp_sorted is guaranteed to be in that range
-                // lookups are applied at the end of this function
-                let address_changed = next_row.addr_sorted - curr_row.addr_sorted;
-                // degree 1
-                // degree 2
-                yield_constr.constraint_transition(
-                    (P::ONES - address_changed)
-                        * (next_row.timestamp_sorted_diff
-                            - (next_row.timestamp_sorted - curr_row.timestamp_sorted)),
-                );
-                // set the timestamp difference to 1 if the address changed as a dummy to indicate we don't care (our range check doesn't include 0 because timestamps have to be unique)
-                // degree 2
-                yield_constr.constraint_transition(
-                    address_changed * (next_row.timestamp_sorted_diff - P::ONES),
-                );
-
-                // check that is_write is binary
-                yield_constr.constraint(curr_row.is_write * (P::ONES - curr_row.is_write));
-                yield_constr
-                    .constraint(curr_row.is_write_sorted * (P::ONES - curr_row.is_write_sorted));
-
-                // check that "unsorted" timestamps start at 1 and increment by 1 each curr_row
-                yield_constr.constraint_first_row(curr_row.timestamp - P::ONES);
-                yield_constr
-                    .constraint_transition(next_row.timestamp - curr_row.timestamp - P::ONES);
-
-                // check that the sorted memory trace is valid
-                // to do this, we check the following at each step;
-                // 1. if the address has changed, the memory trace is valid at this step
-                // 2. if the address has not changed and the current operation is a write, the memory trace is valid at this step
-                // 3. if the address has not changed and the current operation is a read, the memory trace is valid at this step iff the value is the same
-                yield_constr.constraint_transition(
-                    (P::ONES - address_changed)
-                        * (P::ONES - next_row.is_write_sorted)
-                        * (next_row.value_sorted - curr_row.value_sorted),
-                );
-
-                // STACK SEMANTICS
-
-                // check SP starts at 0
-                yield_constr.constraint_first_row(curr_row.sp);
-
-                // check that is_pop is binary (only operations are pop and push)
-                yield_constr.constraint(curr_row.is_pop * (P::ONES - curr_row.is_pop));
-
-                // if the current operation is a pop, the following should be true:
-                // 1. addr should be sp - 1
-                // 2. next sp should be sp - 1
-                // 3. is_write should be 0
-                // a corrolary of this is stack underflows (pop when sp is 0) can't happen since then the addresses wouldn't satisfy the continuity requirement.
-                yield_constr.constraint(curr_row.is_pop * (curr_row.addr - curr_row.sp + P::ONES));
-                yield_constr
-                    .constraint_transition(curr_row.is_pop * (next_row.sp - curr_row.sp + P::ONES));
-                yield_constr.constraint(curr_row.is_pop * curr_row.is_write);
-
-                // if the current operation is a push, the following should be true:
-                // 1. addr should be sp
-                // 2. next sp should be sp + 1
-                // 3. is_write should be 1
-                yield_constr
-                    .constraint((P::ONES - curr_row.is_pop) * (curr_row.addr - curr_row.sp));
-                yield_constr.constraint_transition(
-                    (P::ONES - curr_row.is_pop) * (next_row.sp - curr_row.sp - P::ONES),
-                );
-                yield_constr
-                    .constraint((P::ONES - curr_row.is_pop) * (P::ONES - curr_row.is_write));
-
-                // apply all of the lookups
-                let lookup_pairs = lookup_permutation_sets()
-                    .into_iter()
-                    .map(|(_, _, input, table)| (input, table));
-                for (input, table) in lookup_pairs {
-                    eval_lookups(&vars, yield_constr, input, table);
-                }
-            }
-
-            fn eval_ext_circuit(
-                &self,
-                _builder: &mut CircuitBuilder<F, D>,
-                _vars: StarkEvaluationTargets<D, { Self::COLUMNS }, { Self::PUBLIC_INPUTS }>,
-                _yield_constr: &mut RecursiveConstraintConsumer<F, D>,
-            ) {
-                todo!()
-            }
-
-            fn constraint_degree(&self) -> usize {
-                3
-            }
-
-            fn permutation_pairs(&self) -> Vec<PermutationPair> {
-                vec![PermutationPair {
-                    column_pairs: sorted_access_permutation_pairs(),
-                }]
-            }
-        }
-        */
-    };
+    #[inline]
+    fn permutation_pairs(&self) -> Vec<PermutationPair> {
+        vec![PermutationPair {
+            column_pairs: sorted_access_permutation_pairs(),
+        }]
+    }
 }
 
-impl_stack_stark_for_n_channels!(1);
+impl<F, C, COM, const NUM_CHANNELS: usize> Stark<F, C, COM> for StackStark<NUM_CHANNELS>
+where
+    F: Copy,
+    C: StandardConsumer<F, COM>,
+    COM: Arithmetic<F>,
+{
+    #[inline]
+    fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
+        let _ = public_inputs;
+        let curr = StackRow::<F, NUM_CHANNELS>::from(curr);
+        let next = StackRow::<F, NUM_CHANNELS>::from(next);
+
+        let one = compiler.one();
+
+        let is_push = compiler.sub(one, *curr.is_pop);
+        let sp_add_one = compiler.add(*curr.sp, one);
+        let sp_sub_one = compiler.sub(*curr.sp, one);
+
+        /* FIXME: Embedd RW-Memory STARK */
+
+        // STACK SEMANTICS
+
+        // check that is_pop is binary (only operations are pop and push)
+        compiler.assert_boolean(*curr.is_pop);
+
+        // check SP starts at 0
+        compiler.assert_zero_first_row(*curr.sp);
+
+        // if the current operation is a pop, the following should be true:
+        //
+        // 1. addr should be sp - 1
+        // 2. next sp should be sp - 1
+        // 3. is_write should be 0
+        //
+        // a corrolary of this is stack underflows (pop when sp is 0) can't
+        // happen since then the addresses wouldn't satisfy the continuity requirement.
+
+        compiler
+            .when(*curr.is_pop)
+            .assert_eq(*curr.addr, sp_sub_one)
+            .assert_eq_transition(*next.sp, sp_sub_one)
+            .assert_zero(*curr.is_write);
+
+        // if the current operation is a push, the following should be true:
+        // 1. addr should be sp
+        // 2. next sp should be sp + 1
+        // 3. is_write should be 1
+
+        compiler
+            .when(is_push)
+            .assert_eq(*curr.addr, *curr.sp)
+            .assert_eq_transition(*next.sp, sp_add_one)
+            .assert_one(*curr.is_write);
+    }
+}
 
 #[cfg(test)]
 mod tests {

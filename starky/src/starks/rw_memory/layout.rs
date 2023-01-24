@@ -114,15 +114,12 @@ pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
 }
 
 pub(crate) fn lookup_permutation_sets() -> Vec<(usize, usize, usize, usize)> {
-    vec![
-        // (timestamp_sorted_diff, timestamp, timestamp_sorted_diff_permuted, timestamp_permuted)
-        (
-            offset_of!(RwMemoryRow<u8, 0>, timestamp_sorted_diff),
-            offset_of!(RwMemoryRow<u8, 0>, timestamp),
-            offset_of!(RwMemoryRow<u8, 0>, timestamp_sorted_diff_permuted),
-            offset_of!(RwMemoryRow<u8, 0>, timestamp_permuted),
-        ),
-    ]
+    vec![(
+        offset_of!(RwMemoryRow<u8, 0>, timestamp_sorted_diff),
+        offset_of!(RwMemoryRow<u8, 0>, timestamp),
+        offset_of!(RwMemoryRow<u8, 0>, timestamp_sorted_diff_permuted),
+        offset_of!(RwMemoryRow<u8, 0>, timestamp_permuted),
+    )]
 }
 
 /*
@@ -145,85 +142,3 @@ pub fn ctl_cols<const NUM_CHANNELS: usize>(tid: TableID) -> impl Iterator<Item =
 */
 
 pub(crate) const RW_MEMORY_NUM_COLS_BASE: usize = size_of::<RwMemoryRow<u8, 0>>();
-
-/*
-
-impl<T: Copy + Default, const NUM_CHANNELS: usize> RwMemoryRow<T, NUM_CHANNELS>
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    pub fn new() -> Self {
-        [T::default(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS].into()
-    }
-}
-
-impl<T: Copy + Default, const NUM_CHANNELS: usize> Default for RwMemoryRow<T, NUM_CHANNELS>
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> From<[T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]>
-    for RwMemoryRow<T, NUM_CHANNELS>
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn from(value: [T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]) -> Self {
-        unsafe { transmute_no_compile_time_size_checks(value) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> From<RwMemoryRow<T, NUM_CHANNELS>>
-    for [T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn from(value: RwMemoryRow<T, NUM_CHANNELS>) -> Self {
-        unsafe { transmute_no_compile_time_size_checks(value) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> Borrow<RwMemoryRow<T, NUM_CHANNELS>>
-    for [T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow(&self) -> &RwMemoryRow<T, NUM_CHANNELS> {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> BorrowMut<RwMemoryRow<T, NUM_CHANNELS>>
-    for [T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow_mut(&mut self) -> &mut RwMemoryRow<T, NUM_CHANNELS> {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> Borrow<[T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]>
-    for RwMemoryRow<T, NUM_CHANNELS>
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow(&self) -> &[T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS] {
-        unsafe { transmute(self) }
-    }
-}
-
-impl<T: Copy, const NUM_CHANNELS: usize> BorrowMut<[T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]>
-    for RwMemoryRow<T, NUM_CHANNELS>
-where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
-{
-    fn borrow_mut(&mut self) -> &mut [T; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS] {
-        unsafe { transmute(self) }
-    }
-}
-
-*/
