@@ -10,7 +10,6 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 
 use crate::consumer::Compiler;
 use crate::ir::{Add, Arithmetic, Assertions, Constraint, Mul, One, Sub};
-use crate::lookup::eval_lookups;
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::stack::layout::{
@@ -61,19 +60,19 @@ where
 
         let one = compiler.one();
 
-        let is_push = compiler.sub(one, *curr.is_pop);
-        let sp_add_one = compiler.add(*curr.sp, one);
-        let sp_sub_one = compiler.sub(*curr.sp, one);
+        let is_push = compiler.sub(&one, curr.is_pop);
+        let sp_add_one = compiler.add(curr.sp, &one);
+        let sp_sub_one = compiler.sub(curr.sp, &one);
 
-        /* FIXME: Embedd RW-Memory STARK */
+        /* FIXME: Embed RW-Memory STARK */
 
         // STACK SEMANTICS
 
         // check that is_pop is binary (only operations are pop and push)
-        compiler.assert_boolean(*curr.is_pop);
+        compiler.assert_boolean(curr.is_pop);
 
         // check SP starts at 0
-        compiler.assert_zero_first_row(*curr.sp);
+        compiler.assert_zero_first_row(curr.sp);
 
         // if the current operation is a pop, the following should be true:
         //
@@ -86,9 +85,9 @@ where
 
         compiler
             .when(*curr.is_pop)
-            .assert_eq(*curr.addr, sp_sub_one)
-            .assert_eq_transition(*next.sp, sp_sub_one)
-            .assert_zero(*curr.is_write);
+            .assert_eq(curr.addr, &sp_sub_one)
+            .assert_eq_transition(next.sp, &sp_sub_one)
+            .assert_zero(curr.is_write);
 
         // if the current operation is a push, the following should be true:
         // 1. addr should be sp
@@ -97,9 +96,9 @@ where
 
         compiler
             .when(is_push)
-            .assert_eq(*curr.addr, *curr.sp)
-            .assert_eq_transition(*next.sp, sp_add_one)
-            .assert_one(*curr.is_write);
+            .assert_eq(curr.addr, curr.sp)
+            .assert_eq_transition(next.sp, &sp_add_one)
+            .assert_one(curr.is_write);
     }
 }
 

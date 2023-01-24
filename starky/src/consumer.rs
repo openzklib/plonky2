@@ -8,7 +8,7 @@ use crate::ir::{
 /// Consumer
 pub trait Consumer<F, COM = ()> {
     /// Inserts the constraint that `value == 0` into `self`.
-    fn constraint(&mut self, value: F, compiler: &mut COM);
+    fn constraint(&mut self, value: &F, compiler: &mut COM);
 }
 
 impl<F, C, COM> Consumer<F, COM> for &mut C
@@ -16,7 +16,7 @@ where
     C: Consumer<F, COM>,
 {
     #[inline]
-    fn constraint(&mut self, value: F, compiler: &mut COM) {
+    fn constraint(&mut self, value: &F, compiler: &mut COM) {
         (**self).constraint(value, compiler)
     }
 }
@@ -24,7 +24,7 @@ where
 /// Filtered Consumer
 pub trait FilteredConsumer<F, Filter, COM = ()> {
     /// Inserts the constraint that `value == 0` into `self`, conditioned on the `filter`.
-    fn constraint_filtered(&mut self, filter: Filter, value: F, compiler: &mut COM);
+    fn constraint_filtered(&mut self, filter: Filter, value: &F, compiler: &mut COM);
 }
 
 impl<F, Filter, C, COM> FilteredConsumer<F, Filter, COM> for &mut C
@@ -32,7 +32,7 @@ where
     C: FilteredConsumer<F, Filter, COM>,
 {
     #[inline]
-    fn constraint_filtered(&mut self, filter: Filter, value: F, compiler: &mut COM) {
+    fn constraint_filtered(&mut self, filter: Filter, value: &F, compiler: &mut COM) {
         (**self).constraint_filtered(filter, value, compiler)
     }
 }
@@ -62,7 +62,7 @@ where
     COM: Add<F>,
 {
     #[inline]
-    fn add(&mut self, lhs: F, rhs: F) -> F {
+    fn add(&mut self, lhs: &F, rhs: &F) -> F {
         self.compiler.add(lhs, rhs)
     }
 }
@@ -72,7 +72,7 @@ where
     COM: Sub<F>,
 {
     #[inline]
-    fn sub(&mut self, lhs: F, rhs: F) -> F {
+    fn sub(&mut self, lhs: &F, rhs: &F) -> F {
         self.compiler.sub(lhs, rhs)
     }
 }
@@ -92,7 +92,7 @@ where
     COM: Mul<F>,
 {
     #[inline]
-    fn mul(&mut self, lhs: F, rhs: F) -> F {
+    fn mul(&mut self, lhs: &F, rhs: &F) -> F {
         self.compiler.mul(lhs, rhs)
     }
 }
@@ -112,7 +112,7 @@ where
     C: Consumer<F, COM>,
 {
     #[inline]
-    fn assert_zero(&mut self, value: F) -> &mut Self {
+    fn assert_zero(&mut self, value: &F) -> &mut Self {
         self.consumer.constraint(value, self.compiler);
         self
     }
@@ -123,7 +123,7 @@ where
     C: FilteredConsumer<F, Filter, COM>,
 {
     #[inline]
-    fn assert_zero_when(&mut self, filter: Filter, value: F) -> &mut Self {
+    fn assert_zero_when(&mut self, filter: Filter, value: &F) -> &mut Self {
         self.consumer
             .constraint_filtered(filter, value, self.compiler);
         self
@@ -135,7 +135,7 @@ where
     COM: Constant<T, F>,
 {
     #[inline]
-    fn constant(&mut self, value: T) -> F {
+    fn constant(&mut self, value: &T) -> F {
         self.compiler.constant(value)
     }
 }
@@ -248,7 +248,7 @@ pub mod basic {
         COM: ScalarMulAdd<T, E>,
     {
         #[inline]
-        fn constraint(&mut self, value: E, compiler: &mut COM) {
+        fn constraint(&mut self, value: &E, compiler: &mut COM) {
             for (alpha, acc) in self.alphas.iter().zip(&mut self.constraint_accs) {
                 *acc = compiler.scalar_mul_add(acc.clone(), alpha.clone(), value.clone());
             }
@@ -262,9 +262,9 @@ pub mod basic {
         COM: Mul<E> + ScalarMulAdd<T, E>,
     {
         #[inline]
-        fn constraint_filtered(&mut self, _: Transition, value: E, compiler: &mut COM) {
-            let filtered_value = compiler.mul(self.z_last.clone(), value);
-            self.constraint(filtered_value, compiler)
+        fn constraint_filtered(&mut self, _: Transition, value: &E, compiler: &mut COM) {
+            let filtered_value = compiler.mul(&self.z_last, value);
+            self.constraint(&filtered_value, compiler)
         }
     }
 
@@ -275,9 +275,9 @@ pub mod basic {
         COM: Mul<E> + ScalarMulAdd<T, E>,
     {
         #[inline]
-        fn constraint_filtered(&mut self, _: FirstRow, value: E, compiler: &mut COM) {
-            let filtered_value = compiler.mul(self.lagrange_basis_first.clone(), value);
-            self.constraint(filtered_value, compiler)
+        fn constraint_filtered(&mut self, _: FirstRow, value: &E, compiler: &mut COM) {
+            let filtered_value = compiler.mul(&self.lagrange_basis_first, value);
+            self.constraint(&filtered_value, compiler)
         }
     }
 
@@ -288,9 +288,9 @@ pub mod basic {
         COM: Mul<E> + ScalarMulAdd<T, E>,
     {
         #[inline]
-        fn constraint_filtered(&mut self, _: LastRow, value: E, compiler: &mut COM) {
-            let filtered_value = compiler.mul(self.lagrange_basis_last.clone(), value);
-            self.constraint(filtered_value, compiler)
+        fn constraint_filtered(&mut self, _: LastRow, value: &E, compiler: &mut COM) {
+            let filtered_value = compiler.mul(&self.lagrange_basis_last, value);
+            self.constraint(&filtered_value, compiler)
         }
     }
 

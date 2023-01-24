@@ -69,16 +69,16 @@ where
         let _ = (next, public_inputs);
         let row = XorRow::<F, N, NUM_CHANNELS>::from(curr);
 
-        compiler.assert_bit_decomposition(*row.a, *row.a_bits);
-        compiler.assert_bit_decomposition(*row.b, *row.b_bits);
+        compiler.assert_bit_decomposition(row.a, row.a_bits);
+        compiler.assert_bit_decomposition(row.b, row.b_bits);
 
         let output_bits = (0..N)
-            .map(|i| compiler.xor(row.a_bits[i], row.b_bits[i]))
+            .map(|i| compiler.xor(&row.a_bits[i], &row.b_bits[i]))
             .collect::<Vec<_>>();
-        compiler.assert_bit_decomposition(*row.output, output_bits);
+        compiler.assert_bit_decomposition(row.output, output_bits);
 
         for i in 0..NUM_CHANNELS {
-            compiler.assert_boolean(row.channel_filters[i]);
+            compiler.assert_boolean(&row.channel_filters[i]);
         }
     }
 }

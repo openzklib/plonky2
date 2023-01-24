@@ -1,16 +1,9 @@
 use core::cmp::Ordering;
 
 use itertools::Itertools;
-use plonky2::field::extension::Extendable;
-use plonky2::field::packed::PackedField;
-use plonky2::field::types::{Field, PrimeField64};
-use plonky2::hash::hash_types::RichField;
-use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2::field::types::PrimeField64;
 
-use crate::consumer::basic::{ConstraintConsumer, RecursiveConstraintConsumer};
-use crate::consumer::{Consumer, FilteredConsumer};
-use crate::ir::{LastRow, Mul, Sub};
-
+/*
 ///
 #[inline]
 pub fn eval_lookups<T, C, COM>(
@@ -43,6 +36,7 @@ pub fn eval_lookups<T, C, COM>(
     // row is the first row.
     consumer.constraint_filtered(LastRow, diff_input_table, compiler);
 }
+*/
 
 /* TODO:
 pub(crate) fn eval_lookups<

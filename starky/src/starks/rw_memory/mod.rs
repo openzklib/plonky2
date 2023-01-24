@@ -11,7 +11,6 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 
 use crate::consumer::Compiler;
 use crate::ir::{Arithmetic, Assertions, Mul, One, Sub};
-use crate::lookup::eval_lookups;
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::rw_memory::layout::{
@@ -62,17 +61,17 @@ where
 
         let one = compiler.one();
 
-        let address_changed = compiler.sub(*next.addr_sorted, *curr.addr_sorted);
-        let timestamp_changed = compiler.sub(*next.timestamp_sorted, *curr.timestamp_sorted);
+        let address_changed = compiler.sub(next.addr_sorted, curr.addr_sorted);
+        let timestamp_changed = compiler.sub(next.timestamp_sorted, curr.timestamp_sorted);
 
-        let address_unchanged = compiler.sub(one, address_changed);
+        let address_unchanged = compiler.sub(&one, &address_changed);
 
         // check sorted addresses are monotonic, continuous, and start at 0
         // we do this by ensuring either the sorted address increases by 0 or 1 at each curr_row and at
         // the first curr_row, the sorted addr is 0
 
-        compiler.assert_zero_first_row(*curr.addr_sorted);
-        compiler.assert_zero_product_transition(address_changed, address_unchanged);
+        compiler.assert_zero_first_row(curr.addr_sorted);
+        compiler.assert_zero_product_transition(&address_changed, &address_unchanged);
 
         // check timestamps are increasing using a range check
         // this works as follows:
@@ -94,22 +93,22 @@ where
 
         compiler
             .when(address_unchanged)
-            .assert_eq_transition(*next.timestamp_sorted_diff, timestamp_changed);
+            .assert_eq_transition(next.timestamp_sorted_diff, &timestamp_changed);
 
         // set the timestamp difference to 1 if the address changed as a dummy to indicate we don't care
         // (our range check doesn't include 0 because timestamps have to be unique)
 
         compiler
             .when(address_changed)
-            .assert_eq_transition(*next.timestamp_sorted_diff, one);
+            .assert_eq_transition(next.timestamp_sorted_diff, &one);
 
         // check that is_write is binary
-        compiler.assert_boolean(*curr.is_write);
-        compiler.assert_boolean(*curr.is_write_sorted);
+        compiler.assert_boolean(curr.is_write);
+        compiler.assert_boolean(curr.is_write_sorted);
 
         // check that "unsorted" timestamps start at 1 and increment by 1 each curr_row
-        compiler.assert_eq_first_row(*curr.timestamp, one);
-        compiler.assert_increments_by(*curr.timestamp, *next.timestamp, one);
+        compiler.assert_eq_first_row(curr.timestamp, &one);
+        compiler.assert_increments_by(curr.timestamp, next.timestamp, &one);
 
         // check that the sorted memory trace is valid
         // to do this, we check the following at each step;
@@ -119,15 +118,15 @@ where
         // 3. if the address has not changed and the current operation is a read, the memory trace is
         //    valid at this step iff the value is the same
 
-        let next_is_not_write = compiler.sub(one, *next.is_write_sorted);
+        let next_is_not_write = compiler.sub(&one, next.is_write_sorted);
 
         compiler
             .when_all([address_unchanged, next_is_not_write])
-            .assert_eq_transition(*next.value_sorted, *curr.value_sorted);
+            .assert_eq_transition(next.value_sorted, curr.value_sorted);
 
         // Apply all of the lookups.
         for (_, _, input, table) in lookup_permutation_sets() {
-            compiler.assert_lookup(curr[input], next[input], next[table]);
+            compiler.assert_lookup(&curr[input], &next[input], &next[table]);
         }
     }
 }
