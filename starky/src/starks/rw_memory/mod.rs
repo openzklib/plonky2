@@ -4,7 +4,6 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 
-use layout::*;
 use plonky2::field::extension::{Extendable, FieldExtension};
 use plonky2::field::packed::PackedField;
 use plonky2::hash::hash_types::RichField;
@@ -15,7 +14,9 @@ use crate::ir::{Arithmetic, Assertions, Mul, One, Sub};
 use crate::lookup::eval_lookups;
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
-use crate::starks::stack::layout::{lookup_permutation_sets, sorted_access_permutation_pairs};
+use crate::starks::rw_memory::layout::{
+    lookup_permutation_sets, sorted_access_permutation_pairs, RwMemoryRow, RW_MEMORY_NUM_COLS_BASE,
+};
 
 // TODO: pub mod generation;
 pub mod layout;

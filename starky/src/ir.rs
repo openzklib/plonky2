@@ -11,7 +11,7 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 
 /// Constraint
 pub trait Constraint<F> {
-    /// Asserts that `value == 0` in the constraint system.
+    /// Asserts that `value == 0`.
     fn assert_zero(&mut self, value: F);
 
     /// Asserts that `lhs == rhs` by subtracting them and calling [`Self::assert_zero`].
@@ -22,6 +22,16 @@ pub trait Constraint<F> {
     {
         let diff = self.sub(lhs, rhs);
         self.assert_zero(diff);
+    }
+
+    /// Asserts that `value == 1`.
+    #[inline]
+    fn assert_one(&mut self, value: F)
+    where
+        Self: Sub<F> + One<F>,
+    {
+        let one = self.one();
+        self.assert_eq(value, one);
     }
 }
 
@@ -49,6 +59,16 @@ pub trait ConstraintFiltered<F, Filter> {
     {
         let diff = self.sub(lhs, rhs);
         self.assert_zero_when(filter, diff);
+    }
+
+    /// Asserts that `value == 1` whenever the `filter` is true.
+    #[inline]
+    fn assert_one_when(&mut self, filter: Filter, value: F)
+    where
+        Self: Sub<F> + One<F>,
+    {
+        let one = self.one();
+        self.assert_eq_when(filter, value, one);
     }
 }
 

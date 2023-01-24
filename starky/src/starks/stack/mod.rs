@@ -8,20 +8,115 @@ use plonky2::field::packed::PackedField;
 use plonky2::hash::hash_types::RichField;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 
-// TODO: pub mod generation;
-pub mod layout;
-
-use layout::*;
-
+use crate::consumer::Compiler;
+use crate::ir::{Add, Arithmetic, Assertions, Constraint, Mul, One, Sub};
 use crate::lookup::eval_lookups;
 use crate::permutation::PermutationPair;
-use crate::stark::Stark;
+use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
+use crate::starks::stack::layout::{
+    sorted_access_permutation_pairs, StackRow, STACK_NUM_COLS_BASE,
+};
+
+// TODO: pub mod generation;
+pub mod layout;
 
 #[derive(Default)]
 pub struct StackStark<const NUM_CHANNELS: usize>;
 
 macro_rules! impl_stack_stark_for_n_channels {
     ($channels:expr) => {
+        impl<const NUM_CHANNELS: usize> StarkConfiguration for StackStark<NUM_CHANNELS> {
+            #[inline]
+            fn columns(&self) -> usize {
+                STACK_NUM_COLS_BASE + $channels
+            }
+
+            #[inline]
+            fn public_inputs(&self) -> usize {
+                0
+            }
+
+            #[inline]
+            fn constraint_degree(&self) -> usize {
+                3
+            }
+
+            #[inline]
+            fn permutation_pairs(&self) -> Vec<PermutationPair> {
+                vec![PermutationPair {
+                    column_pairs: sorted_access_permutation_pairs(),
+                }]
+            }
+        }
+
+        impl<F, C, COM, const NUM_CHANNELS: usize> Stark<F, C, COM> for StackStark<NUM_CHANNELS>
+        where
+            F: Copy,
+            C: StandardConsumer<F, COM>,
+            COM: Arithmetic<F>,
+        {
+            #[inline]
+            fn eval(
+                &self,
+                curr: &[F],
+                next: &[F],
+                public_inputs: &[F],
+                mut compiler: Compiler<C, COM>,
+            ) {
+                let _ = public_inputs;
+                let curr = StackRow::<F, $channels>::from(curr);
+                let next = StackRow::<F, $channels>::from(next);
+
+                let one = compiler.one();
+
+                let is_push = compiler.sub(one, *curr.is_pop);
+                let sp_add_one = compiler.add(*curr.sp, one);
+                let sp_sub_one = compiler.sub(*curr.sp, one);
+
+                /* FIXME: Embedd RW-Memory STARK */
+
+                // STACK SEMANTICS
+
+                // check that is_pop is binary (only operations are pop and push)
+                compiler.assert_boolean(*curr.is_pop);
+
+                // check SP starts at 0
+                compiler.assert_zero_first_row(*curr.sp);
+
+                // if the current operation is a pop, the following should be true:
+                //
+                // 1. addr should be sp - 1
+                // 2. next sp should be sp - 1
+                // 3. is_write should be 0
+                //
+                // a corrolary of this is stack underflows (pop when sp is 0) can't
+                // happen since then the addresses wouldn't satisfy the continuity requirement.
+
+                compiler
+                    .when(*curr.is_pop)
+                    .assert_eq(*curr.addr, sp_sub_one);
+
+                compiler
+                    .when(*curr.is_pop)
+                    .assert_eq_transition(*next.sp, sp_sub_one);
+
+                compiler.when(*curr.is_pop).assert_zero(*curr.is_write);
+
+                // if the current operation is a push, the following should be true:
+                // 1. addr should be sp
+                // 2. next sp should be sp + 1
+                // 3. is_write should be 1
+
+                compiler.when(is_push).assert_eq(*curr.addr, *curr.sp);
+
+                compiler
+                    .when(is_push)
+                    .assert_eq_transition(*next.sp, sp_add_one);
+
+                compiler.when(is_push).assert_one(*curr.is_write);
+            }
+        }
+
         /*
         impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D>
             for StackStark<F, D, $channels>

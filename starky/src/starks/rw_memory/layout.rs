@@ -101,9 +101,10 @@ pub struct RwMemoryRow<T: Copy, const NUM_CHANNELS: usize> {
     // >1 channel can be helpful when a STARK only wants to read part of the memory
     pub filter_cols: [T; NUM_CHANNELS],
 }
+*/
 
 pub(crate) fn sorted_access_permutation_pairs() -> Vec<(usize, usize)> {
-    type R = RwMemoryRow<u8, 0>;
+    type R = RwMemoryRow<'static, u8, 0>;
     vec![
         (offset_of!(R, addr), offset_of!(R, addr_sorted)),
         (offset_of!(R, timestamp), offset_of!(R, timestamp_sorted)),
@@ -141,8 +142,6 @@ pub fn ctl_cols<const NUM_CHANNELS: usize>(tid: TableID) -> impl Iterator<Item =
         )
     })
 }
-*/
-
 */
 
 pub(crate) const RW_MEMORY_NUM_COLS_BASE: usize = size_of::<RwMemoryRow<u8, 0>>();
