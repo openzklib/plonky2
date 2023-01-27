@@ -11,6 +11,7 @@ use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::util::timing::TimingTree;
 use plonky2_evm::all_stark::AllStark;
 use plonky2_evm::config::StarkConfig;
+use plonky2_evm::cpu::kernel::opcodes::{get_opcode, get_push_opcode};
 use plonky2_evm::generation::mpt::AccountRlp;
 use plonky2_evm::generation::{GenerationInputs, TrieInputs};
 use plonky2_evm::proof::BlockMetadata;
@@ -23,7 +24,7 @@ type C = PoseidonGoldilocksConfig;
 
 /// Test a simple token transfer to a new address.
 #[test]
-fn test_simple_transfer() -> anyhow::Result<()> {
+fn test_basic_smart_contract() -> anyhow::Result<()> {
     init_logger();
 
     let all_stark = AllStark::<F, D>::default();
@@ -37,17 +38,41 @@ fn test_simple_transfer() -> anyhow::Result<()> {
     let to_nibbles = Nibbles::from_bytes_be(to_state_key.as_bytes()).unwrap();
     let value = U256::from(100u32);
 
+    let push1 = get_push_opcode(1);
+    let add = get_opcode("ADD");
+    let stop = get_opcode("STOP");
+    let code = [push1, 3, push1, 4, add, stop];
+    let code_hash = keccak(code);
+
     let sender_account_before = AccountRlp {
         nonce: 5.into(),
         balance: eth_to_wei(100_000.into()),
-        storage_root: PartialTrie::Empty.calc_hash(),
-        code_hash: keccak([]),
+        ..AccountRlp::default()
     };
 
-    let state_trie_before = PartialTrie::Leaf {
-        nibbles: sender_nibbles,
-        value: rlp::encode(&sender_account_before).to_vec(),
+    let to_account_before = AccountRlp {
+        code_hash,
+        ..AccountRlp::default()
     };
+
+    let state_trie_before = {
+        let mut children = std::array::from_fn(|_| PartialTrie::Empty.into());
+        children[sender_nibbles.get_nibble(0) as usize] = PartialTrie::Leaf {
+            nibbles: sender_nibbles.truncate_n_nibbles_front(1),
+            value: rlp::encode(&sender_account_before).to_vec(),
+        }
+        .into();
+        children[to_nibbles.get_nibble(0) as usize] = PartialTrie::Leaf {
+            nibbles: to_nibbles.truncate_n_nibbles_front(1),
+            value: rlp::encode(&to_account_before).to_vec(),
+        }
+        .into();
+        PartialTrie::Branch {
+            children,
+            value: vec![],
+        }
+    };
+
     let tries_before = TrieInputs {
         state_trie: state_trie_before,
         transactions_trie: PartialTrie::Empty,
@@ -60,10 +85,12 @@ fn test_simple_transfer() -> anyhow::Result<()> {
 
     let block_metadata = BlockMetadata::default();
 
+    let mut contract_code = HashMap::new();
+    contract_code.insert(code_hash, code.to_vec());
     let inputs = GenerationInputs {
         signed_txns: vec![txn.to_vec()],
         tries: tries_before,
-        contract_code: HashMap::new(),
+        contract_code,
         block_metadata,
     };
 
@@ -73,13 +100,14 @@ fn test_simple_transfer() -> anyhow::Result<()> {
 
     let expected_state_trie_after = {
         let sender_account_after = AccountRlp {
-            balance: sender_account_before.balance - value, // TODO: Also subtract gas_used * price.
-            // nonce: sender_account_before.nonce + 1, // TODO
+            // TODO: Should be 21k; 1k gas should be refunded.
+            balance: sender_account_before.balance - value - 22_000 * 10,
+            nonce: sender_account_before.nonce + 1,
             ..sender_account_before
         };
         let to_account_after = AccountRlp {
-            balance: value,
-            ..AccountRlp::default()
+            balance: to_account_before.balance + value,
+            ..to_account_before
         };
 
         let mut children = std::array::from_fn(|_| PartialTrie::Empty.into());
@@ -93,6 +121,7 @@ fn test_simple_transfer() -> anyhow::Result<()> {
             value: rlp::encode(&to_account_after).to_vec(),
         }
         .into();
+        // TODO: Beneficiary should receive gas...
         PartialTrie::Branch {
             children,
             value: vec![],
