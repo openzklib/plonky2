@@ -146,6 +146,7 @@ pub trait Gate<F: RichField + Extendable<D>, const D: usize>: 'static + Send + S
         num_selectors: usize,
         combined_gate_constraints: &mut [ExtensionTarget<D>],
     ) {
+        println!("Filtered eval for gate {}", self.id());
         let filter = compute_filter_circuit(
             builder,
             row,
@@ -243,11 +244,12 @@ pub struct PrefixedGate<F: RichField + Extendable<D>, const D: usize> {
     pub prefix: Vec<bool>,
 }
 
-/// A gate's filter designed so that it is non-zero if `s = row`.
-fn compute_filter<K: Field>(row: usize, group_range: Range<usize>, s: K, many_selector: bool) -> K {
-    debug_assert!(group_range.contains(&row));
+/// A gate's filter designed so that it is non-zero if `s = j`, where `j` is the index of the
+/// gate in some list of "all gates".
+fn compute_filter<K: Field>(j: usize, group_range: Range<usize>, s: K, many_selector: bool) -> K {
+    debug_assert!(group_range.contains(&j));
     group_range
-        .filter(|&i| i != row)
+        .filter(|&i| i != j)
         .chain(many_selector.then_some(UNUSED_SELECTOR))
         .map(|i| K::from_canonical_usize(i) - s)
         .product()
@@ -255,19 +257,20 @@ fn compute_filter<K: Field>(row: usize, group_range: Range<usize>, s: K, many_se
 
 fn compute_filter_circuit<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
-    row: usize,
+    j: usize,
     group_range: Range<usize>,
     s: ExtensionTarget<D>,
     many_selectors: bool,
 ) -> ExtensionTarget<D> {
-    debug_assert!(group_range.contains(&row));
+    debug_assert!(group_range.contains(&j));
     let v = group_range
-        .filter(|&i| i != row)
+        .filter(|&i| i != j)
         .chain(many_selectors.then_some(UNUSED_SELECTOR))
         .map(|i| {
             let c = builder.constant_extension(F::Extension::from_canonical_usize(i));
             builder.sub_extension(c, s)
         })
         .collect::<Vec<_>>();
+    println!("Computed filter as a product of {} values", v.len());
     builder.mul_many_extension(v)
 }
