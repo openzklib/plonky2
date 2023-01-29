@@ -104,6 +104,7 @@ where
 }
 
 /// STARK Metadata
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct StarkMetadata {
     /// Constraint Degree
     pub constraint_degree: usize,

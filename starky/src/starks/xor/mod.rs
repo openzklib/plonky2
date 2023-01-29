@@ -5,13 +5,12 @@ use plonky2::field::types::PrimeField64;
 use plonky2::util::log2_ceil;
 
 use crate::consumer::Compiler;
-use crate::gate::{Gate, Input, Read};
+use crate::gate::{Gate, Read};
 use crate::ir::{Arithmetic, Assertions, Constraint};
 use crate::stark::{StandardConstraint, StandardConsumer, Stark, StarkConfiguration};
 use crate::util::{is_power_of_two, trace_rows_to_poly_values};
 
 /// Bits Values
-#[repr(C)]
 pub struct Bits<T, const N: usize> {
     /// Value
     pub value: T,
@@ -45,7 +44,6 @@ where
 }
 
 /// XOR Row
-#[repr(C)]
 pub struct Row<T, const N: usize, const CHANNELS: usize> {
     /// LHS Input
     pub lhs: Bits<T, N>,
@@ -61,7 +59,7 @@ pub struct Row<T, const N: usize, const CHANNELS: usize> {
 }
 
 impl<T, const N: usize, const CHANNELS: usize> Row<T, N, CHANNELS> {
-    /// Row Size
+    /// Gate Size
     pub const SIZE: usize = core::mem::size_of::<Row<u8, N, CHANNELS>>();
 }
 
@@ -236,7 +234,6 @@ mod tests {
     use plonky2::util::timing::TimingTree;
     use rand::Rng;
 
-    use super::generation::Generator;
     use super::*;
     use crate::config::StarkConfig;
     use crate::prover::prove;

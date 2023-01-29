@@ -1,128 +1,89 @@
+//! Lookup Tables
+
 use core::cmp::Ordering;
 
 use itertools::Itertools;
+use plonky2::field::polynomial::PolynomialValues;
 use plonky2::field::types::PrimeField64;
 
-/*
-///
+use crate::gate::Gate;
+use crate::ir::{Assertions, Constraint, ConstraintFiltered, LastRow, Mul, Sub};
+
+/// Asserts a valid lookup over `curr_input`, `next_input`, and `next_table` in the `compiler`.
 #[inline]
-pub fn eval_lookups<T, C, COM>(
-    col_permuted_input: usize,
-    col_permuted_table: usize,
-    curr: &[T],
-    next: &[T],
-    consumer: &mut C,
-    compiler: &mut COM,
-) where
-    T: Copy,
-    C: Consumer<T, COM> + FilteredConsumer<T, LastRow, COM>,
-    COM: Mul<T> + Sub<T>,
+pub fn assert_lookup<T, COM>(curr_input: &T, next_input: &T, next_table: &T, compiler: &mut COM)
+where
+    T: Clone,
+    COM: Constraint<T> + ConstraintFiltered<T, LastRow> + Mul<T> + Sub<T>,
 {
-    let local_perm_input = curr[col_permuted_input];
-    let next_perm_table = next[col_permuted_table];
-    let next_perm_input = next[col_permuted_input];
-
     // A "vertical" diff between the local and next permuted inputs.
-    let diff_input_prev = compiler.sub(next_perm_input, local_perm_input);
+    let diff_input_prev = compiler.sub(next_input, curr_input);
 
     // A "horizontal" diff between the next permuted input and permuted table value.
-    let diff_input_table = compiler.sub(next_perm_input, next_perm_table);
+    let diff_input_table = compiler.sub(next_input, next_table);
 
-    let diff_product = compiler.mul(diff_input_prev, diff_input_table);
-    consumer.constraint(diff_product, compiler);
+    compiler.assert_zero_product(&diff_input_prev, &diff_input_table);
 
     // This is actually constraining the first row, as per the spec, since `diff_input_table`
     // is a diff of the next row's values. In the context of `constraint_last_row`, the next
     // row is the first row.
-    consumer.constraint_filtered(LastRow, diff_input_table, compiler);
-}
-*/
-
-/* TODO:
-pub(crate) fn eval_lookups<
-    F: Field,
-    P: PackedField<Scalar = F>,
-    const NUM_COLS: usize,
-    const NUM_PIS: usize,
->(
-    vars: &StarkEvaluationVars<F, P, NUM_COLS, NUM_PIS>,
-    yield_constr: &mut ConstraintConsumer<P>,
-    col_permuted_input: usize,
-    col_permuted_table: usize,
-) {
-    let local_perm_input = vars.local_values[col_permuted_input];
-    let next_perm_table = vars.next_values[col_permuted_table];
-    let next_perm_input = vars.next_values[col_permuted_input];
-
-    // A "vertical" diff between the local and next permuted inputs.
-    let diff_input_prev = next_perm_input - local_perm_input;
-    // A "horizontal" diff between the next permuted input and permuted table value.
-    let diff_input_table = next_perm_input - next_perm_table;
-
-    yield_constr.constraint(diff_input_prev * diff_input_table);
-
-    // This is actually constraining the first row, as per the spec, since `diff_input_table`
-    // is a diff of the next row's values. In the context of `constraint_last_row`, the next
-    // row is the first row.
-    yield_constr.constraint_last_row(diff_input_table);
+    compiler.assert_zero_last_row(&diff_input_table);
 }
 
-#[allow(dead_code)]
-pub(crate) fn eval_lookups_circuit<
-    F: RichField + Extendable<D>,
-    const D: usize,
-    const NUM_COLS: usize,
-    const NUM_PIS: usize,
->(
-    builder: &mut CircuitBuilder<F, D>,
-    vars: &StarkEvaluationTargets<D, NUM_COLS, NUM_PIS>,
-    yield_constr: &mut RecursiveConstraintConsumer<D>,
-    col_permuted_input: usize,
-    col_permuted_table: usize,
-) {
-    let local_perm_input = vars.local_values[col_permuted_input];
-    let next_perm_table = vars.next_values[col_permuted_table];
-    let next_perm_input = vars.next_values[col_permuted_input];
+/// Lookup Gate
+pub struct Lookup<T> {
+    /// Input Column
+    pub input: T,
 
-    // A "vertical" diff between the local and next permuted inputs.
-    let diff_input_prev = builder.sub_extension(next_perm_input, local_perm_input);
-    // A "horizontal" diff between the next permuted input and permuted table value.
-    let diff_input_table = builder.sub_extension(next_perm_input, next_perm_table);
+    /// Table Column
+    pub table: T,
 
-    let diff_product = builder.mul_extension(diff_input_prev, diff_input_table);
-    yield_constr.constraint(builder, diff_product);
+    /// Permuted Input Column
+    pub permuted_input: T,
 
-    // This is actually constraining the first row, as per the spec, since `diff_input_table`
-    // is a diff of the next row's values. In the context of `constraint_last_row`, the next
-    // row is the first row.
-    yield_constr.constraint_last_row(builder, diff_input_table);
+    /// Permuted Table Column
+    pub permuted_table: T,
 }
-*/
+
+impl<T, COM> Gate<T, COM> for Lookup<T>
+where
+    T: Clone,
+    COM: Constraint<T> + ConstraintFiltered<T, LastRow> + Mul<T> + Sub<T>,
+{
+    #[inline]
+    fn eval(curr: &Self, next: &Self, _: &[T], compiler: &mut COM) {
+        assert_lookup(
+            &curr.permuted_input,
+            &next.permuted_input,
+            &next.permuted_table,
+            compiler,
+        )
+    }
+}
 
 /// Given an input column and a table column, generate the permuted input and permuted table columns
 /// used in the Halo2 permutation argument.
-pub fn permuted_cols<F: PrimeField64>(inputs: &[F], table: &[F]) -> (Vec<F>, Vec<F>) {
+#[inline]
+pub fn permuted_columns<F>(inputs: &[F], table: &[F]) -> (Vec<F>, Vec<F>)
+where
+    F: PrimeField64,
+{
     let n = inputs.len();
 
     // The permuted inputs do not have to be ordered, but we found that sorting was faster than
     // hash-based grouping. We also sort the table, as this helps us identify "unused" table
     // elements efficiently.
-
+    //
     // To compare elements, e.g. for sorting, we first need them in canonical form. It would be
     // wasteful to canonicalize in each comparison, as a single element may be involved in many
     // comparisons. So we will canonicalize once upfront, then use `to_noncanonical_u64` when
     // comparing elements.
 
-    let sorted_inputs = inputs
-        .iter()
-        .map(|x| x.to_canonical())
-        .sorted_unstable_by_key(|x| x.to_noncanonical_u64())
-        .collect_vec();
-    let sorted_table = table
-        .iter()
-        .map(|x| x.to_canonical())
-        .sorted_unstable_by_key(|x| x.to_noncanonical_u64())
-        .collect_vec();
+    let mut sorted_inputs = inputs.iter().map(|x| x.to_canonical()).collect::<Vec<_>>();
+    sorted_inputs.sort_unstable_by_key(|x| x.to_noncanonical_u64());
+
+    let mut sorted_table = table.iter().map(|x| x.to_canonical()).collect::<Vec<_>>();
+    sorted_table.sort_unstable_by_key(|x| x.to_noncanonical_u64());
 
     let mut unused_table_inds = Vec::with_capacity(n);
     let mut unused_table_vals = Vec::with_capacity(n);
@@ -165,4 +126,21 @@ pub fn permuted_cols<F: PrimeField64>(inputs: &[F], table: &[F]) -> (Vec<F>, Vec
     }
 
     (sorted_inputs, permuted_table)
+}
+
+/// Assign lookup table to `columns` given the target columns.
+#[inline]
+pub fn assign_lookup_table<F>(
+    input: usize,
+    table: usize,
+    input_permuted: usize,
+    table_permuted: usize,
+    columns: &mut [PolynomialValues<F>],
+) where
+    F: PrimeField64,
+{
+    let (permuted_input, permuted_table) =
+        permuted_columns(&columns[input].values, &columns[table].values);
+    columns[input_permuted] = PolynomialValues::new(permuted_input);
+    columns[table_permuted] = PolynomialValues::new(permuted_table);
 }

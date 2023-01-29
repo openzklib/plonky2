@@ -459,27 +459,6 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
-    fn assert_lookup(&mut self, curr_input: &F, next_input: &F, next_table: &F) -> &mut Self
-    where
-        F: Clone,
-        Self: Constraint<F> + ConstraintFiltered<F, LastRow> + Mul<F> + Sub<F>,
-    {
-        // A "vertical" diff between the local and next permuted inputs.
-        let diff_input_prev = self.sub(next_input, curr_input);
-
-        // A "horizontal" diff between the next permuted input and permuted table value.
-        let diff_input_table = self.sub(next_input, next_table);
-
-        self.assert_zero_product(&diff_input_prev, &diff_input_table);
-
-        // This is actually constraining the first row, as per the spec, since `diff_input_table`
-        // is a diff of the next row's values. In the context of `constraint_last_row`, the next
-        // row is the first row.
-        self.assert_zero_last_row(&diff_input_table)
-    }
-
-    ///
-    #[inline]
     fn when(&mut self, condition: F) -> Branch<F, Self> {
         Branch {
             condition,

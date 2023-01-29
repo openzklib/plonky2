@@ -1,8 +1,5 @@
 //! Gate Descriptions
 
-use plonky2::field::polynomial::PolynomialValues;
-use plonky2::field::types::Field;
-
 /// Gate Evaluation
 pub trait Gate<T, COM = ()> {
     /// Evaluates the gate over `curr`, `next`, and `public_inputs` over `compiler`.
@@ -28,9 +25,6 @@ pub trait Gate<T, COM = ()> {
 pub trait Read<T> {
     /// Reads a value of type `Self` from `slice`.
     fn read<'t>(slice: &mut &'t [T]) -> &'t Self;
-
-    /// Converts `self` into a slice.
-    fn as_slice(&self) -> &[T];
 }
 
 /// Read Input
@@ -51,6 +45,12 @@ impl<'t, T> Input<'t, T> for &'t [T] {
     }
 }
 
+///
+pub trait AsSlice<T, const SIZE: usize> {
+    /// Converts `self` into a slice.
+    fn as_slice(&self) -> &[T; SIZE];
+}
+
 /// Temporary macro for implementing [`Read`]. Will eventually be replaced by `derive` macro.
 #[macro_export]
 macro_rules! impl_read_body {
@@ -58,17 +58,27 @@ macro_rules! impl_read_body {
         #[inline]
         fn read<'t>(slice: &mut &'t [$T]) -> &'t Self {
             if slice.len() < Self::SIZE {
-                panic!("Size Mismatch");
+                panic!(
+                    "Size Mismatch: should be {:?} but found {:?}",
+                    Self::SIZE,
+                    slice.len()
+                );
             }
             let output = unsafe {
-                $crate::util::transmute_no_compile_time_size_checks(&slice[0..Self::SIZE])
+                $crate::util::transmute_no_compile_time_size_checks(&slice[..Self::SIZE])
             };
             *slice = &slice[Self::SIZE..];
             output
         }
+    };
+}
 
+/// Temporary macro for implementing [`AsSlice`]. Will eventually be replaced by `derive` macro.
+#[macro_export]
+macro_rules! impl_as_slice_body {
+    ($T:ident, $SIZE:expr) => {
         #[inline]
-        fn as_slice(&self) -> &[$T] {
+        fn as_slice(&self) -> &[$T; $SIZE] {
             unsafe { $crate::util::transmute_no_compile_time_size_checks(self) }
         }
     };

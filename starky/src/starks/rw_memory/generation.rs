@@ -1,21 +1,22 @@
-use core::borrow::{Borrow, BorrowMut};
+//! Read/Write Generator
 
 use itertools::Itertools;
 use plonky2::field::polynomial::PolynomialValues;
 use plonky2::field::types::{Field, PrimeField64};
-use plonky2_util::log2_ceil;
+use plonky2::util::log2_ceil;
 
-use super::layout::*;
-use crate::lookup::permuted_cols;
+use crate::lookup::assign_lookup_table;
+use crate::starks::rw_memory::layout::{lookup_permutation_sets, RwMemoryGate};
 use crate::util::trace_rows_to_poly_values;
 
-pub struct RwMemoryGenerator<F: Field, const NUM_CHANNELS: usize>
+///
+pub struct RwMemoryGenerator<F: Field, const CHANNELS: usize>
 where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); RwMemoryGate::<F, CHANNELS>::SIZE]:,
 {
     timestamp: u64,
     mem: Vec<Option<F>>,
-    trace: Vec<[F; RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]>,
+    trace: Vec<[F; RwMemoryGate::<F, CHANNELS>::SIZE]>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -24,18 +25,19 @@ pub enum MemOp<F: Field> {
     Write(usize, F),
 }
 
-impl<F: PrimeField64, const NUM_CHANNELS: usize> Default for RwMemoryGenerator<F, NUM_CHANNELS>
+impl<F: PrimeField64, const CHANNELS: usize> Default for RwMemoryGenerator<F, CHANNELS>
 where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); RwMemoryGate::<F, CHANNELS>::SIZE]:,
 {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<F: PrimeField64, const NUM_CHANNELS: usize> RwMemoryGenerator<F, NUM_CHANNELS>
+impl<F: PrimeField64, const CHANNELS: usize> RwMemoryGenerator<F, CHANNELS>
 where
-    [(); RW_MEMORY_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); RwMemoryGate::<F, CHANNELS>::SIZE]:,
 {
     pub fn new() -> Self {
         Self {
@@ -58,7 +60,7 @@ where
     }
 
     pub fn gen_write(&mut self, addr: usize, value: F, channels: &[usize]) {
-        let mut row = RwMemoryRow::<F, NUM_CHANNELS>::new();
+        let mut row = RwMemoryGate::<F, CHANNELS>::default();
 
         row.timestamp = F::from_canonical_u64(self.timestamp);
         row.addr = F::from_canonical_u64(addr as u64);
@@ -107,7 +109,7 @@ where
     }
 
     pub fn gen_read(&mut self, addr: usize, channels: &[usize]) -> F {
-        let mut row = RwMemoryRow::<F, NUM_CHANNELS>::new();
+        let mut row = RwMemoryGate::<F, CHANNELS>::default();
 
         let value = self.read_from_mem(addr);
         row.timestamp = F::from_canonical_u64(self.timestamp);
@@ -122,9 +124,9 @@ where
         value
     }
 
-    fn gen_channel_filters(row: &mut RwMemoryRow<F, NUM_CHANNELS>, channels: &[usize]) {
+    fn gen_channel_filters(row: &mut RwMemoryGate<F, CHANNELS>, channels: &[usize]) {
         for &channel in channels {
-            debug_assert!(channel < NUM_CHANNELS);
+            debug_assert!(channel < CHANNELS);
             row.filter_cols[channel] = F::ONE;
         }
     }
@@ -134,7 +136,7 @@ where
             .trace
             .iter()
             .map(|row_arr| {
-                let row: &RwMemoryRow<F, NUM_CHANNELS> = row_arr.borrow();
+                let row = RwMemoryGate::<F, CHANNELS>::borrow(row_arr);
                 let addr = row.addr.to_canonical_u64();
                 let timestamp = row.timestamp.to_canonical_u64();
                 let value = row.value;
@@ -146,7 +148,7 @@ where
         let mut prev_timestamp = None;
         let mut prev_addr = F::ZERO;
         for (i, (addr, timestamp, value, is_write)) in sorted_accesses.enumerate() {
-            let mut row: &mut RwMemoryRow<F, NUM_CHANNELS> = self.trace[i].borrow_mut();
+            let row = RwMemoryGate::<F, CHANNELS>::borrow_mut(&mut self.trace[i]);
             row.addr_sorted = F::from_canonical_u64(addr);
             row.timestamp_sorted = F::from_canonical_u64(timestamp);
             row.value_sorted = value;
@@ -168,13 +170,9 @@ where
         }
     }
 
-    fn gen_luts(cols: &mut [PolynomialValues<F>]) {
-        for (input, table, input_permuted, table_permuted) in lookup_permutation_sets().into_iter()
-        {
-            let (permuted_input, permuted_table) =
-                permuted_cols(&cols[input].values, &cols[table].values);
-            cols[input_permuted] = PolynomialValues::new(permuted_input);
-            cols[table_permuted] = PolynomialValues::new(permuted_table);
+    fn gen_luts(columns: &mut [PolynomialValues<F>]) {
+        for (input, table, input_permuted, table_permuted) in lookup_permutation_sets() {
+            assign_lookup_table(input, table, input_permuted, table_permuted, columns);
         }
     }
 
