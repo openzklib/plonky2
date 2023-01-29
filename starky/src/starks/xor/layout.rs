@@ -1,6 +1,8 @@
 //! XOR Layout
 
+use crate::gate::{Gate, Read};
 use crate::ir::{Arithmetic, Assertions, Constraint};
+use crate::stark::StandardConstraint;
 
 /// Bits Values
 #[repr(C)]
@@ -55,21 +57,6 @@ pub struct Row<T, const N: usize, const CHANNELS: usize> {
 impl<T, const N: usize, const CHANNELS: usize> Row<T, N, CHANNELS> {
     /// Row Size
     pub const SIZE: usize = core::mem::size_of::<Row<u8, N, CHANNELS>>();
-
-    /// Builds a [`Row`] from a `slice` of the right size.
-    #[inline]
-    pub fn build(slice: &[T]) -> &Self {
-        if slice.len() != Self::SIZE {
-            panic!("Size Mismatch");
-        }
-        unsafe { crate::util::transmute_no_compile_time_size_checks(slice) }
-    }
-
-    /// Returns `self` as a slice.
-    #[inline]
-    pub fn as_slice(&self) -> &[T] {
-        unsafe { crate::util::transmute_no_compile_time_size_checks(self) }
-    }
 }
 
 impl<T, const N: usize, const CHANNELS: usize> From<Row<T, N, CHANNELS>>
@@ -92,6 +79,32 @@ where
             rhs: Default::default(),
             output: Default::default(),
             channel_filters: [Default::default(); CHANNELS],
+        }
+    }
+}
+
+impl<T, const N: usize, const CHANNELS: usize> Read<T> for Row<T, N, CHANNELS> {
+    crate::impl_read_body!(T);
+}
+
+impl<T, const N: usize, const CHANNELS: usize, COM> Gate<T, COM> for Row<T, N, CHANNELS>
+where
+    COM: Arithmetic<T> + StandardConstraint<T>,
+{
+    #[inline]
+    fn eval(row: &Self, _: &Self, _: &[T], compiler: &mut COM) {
+        row.lhs.assert_valid(compiler);
+        row.rhs.assert_valid(compiler);
+
+        let output_bits = (0..N)
+            .map(|i| compiler.xor(&row.lhs.bits[i], &row.rhs.bits[i]))
+            .collect::<Vec<_>>();
+
+        // NOTE: If we use `assert_bit_decomposition` the degree is too high.
+        compiler.assert_bit_decomposition_with_unchecked_bits(&row.output, output_bits);
+
+        for i in 0..CHANNELS {
+            compiler.assert_boolean(&row.channel_filters[i]);
         }
     }
 }

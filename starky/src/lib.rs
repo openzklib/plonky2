@@ -6,10 +6,10 @@
 
 extern crate alloc;
 
-mod get_challenges;
-
 pub mod config;
 pub mod consumer;
+pub mod gate;
+pub mod get_challenges;
 pub mod ir;
 pub mod lookup;
 pub mod permutation;

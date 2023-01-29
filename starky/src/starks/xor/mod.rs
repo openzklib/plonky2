@@ -1,6 +1,7 @@
 //! XOR STARK
 
 use crate::consumer::Compiler;
+use crate::gate::{Gate, Input, Read};
 use crate::ir::{Arithmetic, Assertions};
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::xor::layout::Row;
@@ -36,24 +37,14 @@ where
     COM: Arithmetic<F>,
 {
     #[inline]
-    fn eval(&self, curr: &[F], next: &[F], public_inputs: &[F], mut compiler: Compiler<C, COM>) {
-        let _ = (next, public_inputs);
-
-        let row = Row::<F, N, CHANNELS>::build(curr);
-
-        row.lhs.assert_valid(&mut compiler);
-        row.rhs.assert_valid(&mut compiler);
-
-        let output_bits = (0..N)
-            .map(|i| compiler.xor(&row.lhs.bits[i], &row.rhs.bits[i]))
-            .collect::<Vec<_>>();
-
-        // NOTE: If we use `assert_bit_decomposition` the degree is too high.
-        compiler.assert_bit_decomposition_with_unchecked_bits(&row.output, output_bits);
-
-        for i in 0..CHANNELS {
-            compiler.assert_boolean(&row.channel_filters[i]);
-        }
+    fn eval(
+        &self,
+        mut curr: &[F],
+        mut next: &[F],
+        public_inputs: &[F],
+        mut compiler: Compiler<C, COM>,
+    ) {
+        Row::<F, N, CHANNELS>::read_eval(&mut curr, &mut next, public_inputs, &mut compiler);
     }
 }
 
