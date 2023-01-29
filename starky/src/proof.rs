@@ -27,6 +27,8 @@ pub struct StarkProof<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, 
     pub permutation_zs_cap: Option<MerkleCap<F, C::Hasher>>,
     /// Merkle cap of LDEs of trace values.
     pub quotient_polys_cap: MerkleCap<F, C::Hasher>,
+    /// Merkle cap of LDEs of cross-table-lookup Z values
+    pub ctl_zs_cap: Option<MerkleCap<F, C::Hasher>>,
     /// Purported values of each polynomial at the challenge point.
     pub openings: StarkOpeningSet<F, D>,
     /// A batch FRI argument for all openings.
@@ -130,6 +132,14 @@ pub struct StarkOpeningSet<F: RichField + Extendable<D>, const D: usize> {
     pub permutation_zs: Option<Vec<F::Extension>>,
     pub permutation_zs_next: Option<Vec<F::Extension>>,
     pub quotient_polys: Vec<F::Extension>,
+    /// Openings of cross-table-lookup `Z` polynomials at `zeta`.
+    pub ctl_zs: Option<Vec<F::Extension>>,
+    /// Openings of cross-table-lookup `Z` polynomials at `g * zeta`.
+    pub ctl_zs_next: Option<Vec<F::Extension>>,
+    /// Openings of cross-table lookup `Z` polynomials at `g^-1`.
+    pub ctl_zs_last: Option<Vec<F>>,
+    /// Opening of cross-table lookup `Z` polynomials at `g^0`
+    pub ctl_zs_first: Option<Vec<F>>,
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
@@ -138,7 +148,9 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
         g: F,
         trace_commitment: &PolynomialBatch<F, C, D>,
         permutation_zs_commitment: Option<&PolynomialBatch<F, C, D>>,
+        ctl_zs_commitment: Option<&PolynomialBatch<F, C, D>>,
         quotient_commitment: &PolynomialBatch<F, C, D>,
+        degree_bits: usize,
     ) -> Self {
         let eval_commitment = |z: F::Extension, c: &PolynomialBatch<F, C, D>| {
             c.polynomials
@@ -146,12 +158,29 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .map(|p| p.to_extension().eval(z))
                 .collect::<Vec<_>>()
         };
+        let eval_commitment_base = |z: F, c: &PolynomialBatch<F, C, D>| {
+            c.polynomials
+                .par_iter()
+                .map(|p| p.eval(z))
+                .collect::<Vec<_>>()
+        };
+
         let zeta_next = zeta.scalar_mul(g);
+
+        let ctl_zs_first = ctl_zs_commitment.map(|c| eval_commitment_base(F::ONE, c).to_vec());
+        let ctl_zs_last = ctl_zs_commitment.map(|c| {
+            eval_commitment_base(F::primitive_root_of_unity(degree_bits).inverse(), c).to_vec()
+        });
+
         Self {
             local_values: eval_commitment(zeta, trace_commitment),
             next_values: eval_commitment(zeta_next, trace_commitment),
             permutation_zs: permutation_zs_commitment.map(|c| eval_commitment(zeta, c)),
             permutation_zs_next: permutation_zs_commitment.map(|c| eval_commitment(zeta_next, c)),
+            ctl_zs: ctl_zs_commitment.map(|c| eval_commitment(zeta, c)),
+            ctl_zs_next: ctl_zs_commitment.map(|c| eval_commitment(zeta_next, c)),
+            ctl_zs_first,
+            ctl_zs_last,
             quotient_polys: eval_commitment(zeta, quotient_commitment),
         }
     }
@@ -162,6 +191,7 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .local_values
                 .iter()
                 .chain(self.permutation_zs.iter().flatten())
+                .chain(self.ctl_zs.iter().flatten())
                 .chain(&self.quotient_polys)
                 .copied()
                 .collect(),
@@ -171,12 +201,42 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .next_values
                 .iter()
                 .chain(self.permutation_zs_next.iter().flatten())
+                .chain(self.ctl_zs.iter().flatten())
                 .copied()
                 .collect(),
         };
-        FriOpenings {
-            batches: vec![zeta_batch, zeta_next_batch],
+
+        let ctl_first_last_batches = match (self.ctl_zs_first.as_ref(), self.ctl_zs_last.as_ref()) {
+            (Some(first), Some(last)) => {
+                let first_batch = FriOpeningBatch {
+                    values: first
+                        .iter()
+                        .copied()
+                        .map(F::Extension::from_basefield)
+                        .collect(),
+                };
+
+                let last_batch = FriOpeningBatch {
+                    values: last
+                        .iter()
+                        .copied()
+                        .map(F::Extension::from_basefield)
+                        .collect(),
+                };
+
+                Some((first_batch, last_batch))
+            }
+            (None, None) => None,
+            _ => panic!("ctl_zs_first.is_some() != ctl_zs_last.is_some()"),
+        };
+
+        let mut batches = vec![zeta_batch, zeta_next_batch];
+        if let Some((first_batch, last_batch)) = ctl_first_last_batches {
+            batches.push(first_batch);
+            batches.push(last_batch);
         }
+
+        FriOpenings { batches }
     }
 }
 

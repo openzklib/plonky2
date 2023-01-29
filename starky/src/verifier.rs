@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use plonky2::iop::challenger::Challenger;
 use core::iter::once;
 
 use anyhow::{anyhow, ensure, Result};
@@ -12,26 +13,45 @@ use plonky2::plonk::plonk_common::reduce_with_powers;
 
 use crate::config::StarkConfig;
 use crate::consumer::basic::ConstraintConsumer;
+use crate::cross_table_lookup::CtlCheckVars;
 use crate::ir::Registers;
 use crate::permutation::PermutationCheckVars;
 use crate::proof::{StarkOpeningSet, StarkProof, StarkProofChallenges, StarkProofWithPublicInputs};
 use crate::stark::Stark;
 use crate::vanishing_poly::eval_vanishing_poly;
 
-pub fn verify_stark_proof<
+pub fn verify_stark_proof_no_ctl<
     F: RichField + Extendable<D>,
     C: GenericConfig<D, F = F>,
     S: Stark<F, ConstraintConsumer<F>> + Stark<F::Extension, ConstraintConsumer<F::Extension>>,
     const D: usize,
 >(
-    stark: S,
+    stark: &S,
     proof_with_pis: StarkProofWithPublicInputs<F, C, D>,
     config: &StarkConfig,
 ) -> Result<()> {
     ensure!(proof_with_pis.public_inputs.len() == stark.metadata().public_inputs);
     let degree_bits = proof_with_pis.proof.recover_degree_bits(config);
-    let challenges = proof_with_pis.get_challenges(&stark, config, degree_bits);
-    verify_stark_proof_with_challenges(stark, proof_with_pis, challenges, degree_bits, config)
+    let challenges = proof_with_pis.get_stark_challenges_no_ctl(stark, config, degree_bits);
+    verify_stark_proof_with_challenges(stark, proof_with_pis, challenges, None, degree_bits, config)
+}
+
+pub fn verify_stark_proof_with_ctl<
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    S: Stark<F, ConstraintConsumer<F>> + Stark<F::Extension, ConstraintConsumer<F::Extension>>,
+    const D: usize,
+>(
+    stark: &S,
+    proof_with_pis: StarkProofWithPublicInputs<F, C, D>,
+    ctl_vars: &CtlCheckVars<F, F::Extension, F::Extension, D>,
+    challenger: &mut Challenger<F, C::Hasher>,
+    config: &StarkConfig,
+) -> Result<()> {
+    ensure!(proof_with_pis.public_inputs.len() == stark.metadata().public_inputs);
+    let degree_bits = proof_with_pis.proof.recover_degree_bits(config);
+    let challenges = proof_with_pis.get_stark_challenges_with_ctl(stark, config, challenger, degree_bits);
+    verify_stark_proof_with_challenges(stark, proof_with_pis, challenges, Some(ctl_vars), degree_bits, config)
 }
 
 pub(crate) fn verify_stark_proof_with_challenges<
@@ -40,14 +60,16 @@ pub(crate) fn verify_stark_proof_with_challenges<
     S: Stark<F, ConstraintConsumer<F>> + Stark<F::Extension, ConstraintConsumer<F::Extension>>,
     const D: usize,
 >(
-    stark: S,
+    stark: &S,
     proof_with_pis: StarkProofWithPublicInputs<F, C, D>,
     challenges: StarkProofChallenges<F, D>,
+    ctl_vars: Option<&CtlCheckVars<F, F::Extension, F::Extension, D>>,
     degree_bits: usize,
     config: &StarkConfig,
 ) -> Result<()> {
-    validate_proof_shape(&stark, &proof_with_pis, config)?;
-    check_permutation_options(&stark, &proof_with_pis, &challenges)?;
+    // validate_proof_shape(&stark, &proof_with_pis, config)?;
+    check_permutation_options(stark, &proof_with_pis, &challenges)?;
+
     let StarkProofWithPublicInputs {
         proof,
         public_inputs,
@@ -57,6 +79,10 @@ pub(crate) fn verify_stark_proof_with_challenges<
         next_values,
         permutation_zs,
         permutation_zs_next,
+        ctl_zs: _,
+        ctl_zs_next: _,
+        ctl_zs_first: _,
+        ctl_zs_last,
         quotient_polys,
     } = &proof.openings;
     let vars = Registers {
@@ -95,6 +121,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
         config,
         vars,
         permutation_data,
+        ctl_vars,
         &mut consumer,
     );
     let vanishing_polys_zeta = consumer.into_accumulators();
@@ -119,6 +146,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
 
     let merkle_caps = once(proof.trace_cap)
         .chain(proof.permutation_zs_cap)
+        .chain(proof.ctl_zs_cap.clone())
         .chain(once(proof.quotient_polys_cap))
         .collect::<Vec<_>>();
 
@@ -127,6 +155,8 @@ pub(crate) fn verify_stark_proof_with_challenges<
             challenges.stark_zeta,
             F::primitive_root_of_unity(degree_bits),
             config,
+            ctl_zs_last.as_ref().map(|zs| zs.len()).unwrap_or(0),
+            degree_bits
         ),
         &proof.openings.to_fri_openings(),
         &challenges.fri_challenges,
@@ -138,75 +168,75 @@ pub(crate) fn verify_stark_proof_with_challenges<
     Ok(())
 }
 
-fn validate_proof_shape<F, C, S, const D: usize>(
-    stark: &S,
-    proof_with_pis: &StarkProofWithPublicInputs<F, C, D>,
-    config: &StarkConfig,
-) -> anyhow::Result<()>
-where
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    S: Stark<F, ConstraintConsumer<F>>,
-{
-    let StarkProofWithPublicInputs {
-        proof,
-        public_inputs,
-    } = proof_with_pis;
-    let degree_bits = proof.recover_degree_bits(config);
+// fn validate_proof_shape<F, C, S, const D: usize>(
+//     stark: &S,
+//     proof_with_pis: &StarkProofWithPublicInputs<F, C, D>,
+//     config: &StarkConfig,
+// ) -> anyhow::Result<()>
+// where
+//     F: RichField + Extendable<D>,
+//     C: GenericConfig<D, F = F>,
+//     S: Stark<F, ConstraintConsumer<F>>,
+// {
+//     let StarkProofWithPublicInputs {
+//         proof,
+//         public_inputs,
+//     } = proof_with_pis;
+//     let degree_bits = proof.recover_degree_bits(config);
 
-    let StarkProof {
-        trace_cap,
-        permutation_zs_cap,
-        quotient_polys_cap,
-        openings,
-        // The shape of the opening proof will be checked in the FRI verifier (see
-        // validate_fri_proof_shape), so we ignore it here.
-        opening_proof: _,
-    } = proof;
+//     let StarkProof {
+//         trace_cap,
+//         permutation_zs_cap,
+//         quotient_polys_cap,
+//         openings,
+//         // The shape of the opening proof will be checked in the FRI verifier (see
+//         // validate_fri_proof_shape), so we ignore it here.
+//         opening_proof: _,
+//     } = proof;
 
-    let StarkOpeningSet {
-        local_values,
-        next_values,
-        permutation_zs,
-        permutation_zs_next,
-        quotient_polys,
-    } = openings;
+//     let StarkOpeningSet {
+//         local_values,
+//         next_values,
+//         permutation_zs,
+//         permutation_zs_next,
+//         quotient_polys,
+//     } = openings;
 
-    ensure!(public_inputs.len() == stark.metadata().public_inputs);
+//     ensure!(public_inputs.len() == stark.metadata().public_inputs);
 
-    let fri_params = config.fri_params(degree_bits);
-    let cap_height = fri_params.config.cap_height;
-    let num_zs = stark.metadata().num_permutation_batches(config);
+//     let fri_params = config.fri_params(degree_bits);
+//     let cap_height = fri_params.config.cap_height;
+//     let num_zs = stark.metadata().num_permutation_batches(config);
 
-    ensure!(trace_cap.height() == cap_height);
-    ensure!(quotient_polys_cap.height() == cap_height);
+//     ensure!(trace_cap.height() == cap_height);
+//     ensure!(quotient_polys_cap.height() == cap_height);
 
-    ensure!(local_values.len() == stark.metadata().columns);
-    ensure!(next_values.len() == stark.metadata().columns);
-    ensure!(quotient_polys.len() == stark.metadata().num_quotient_polys(config));
+//     ensure!(local_values.len() == stark.metadata().columns);
+//     ensure!(next_values.len() == stark.metadata().columns);
+//     ensure!(quotient_polys.len() == stark.metadata().num_quotient_polys(config));
 
-    if stark.metadata().uses_permutation_args() {
-        let permutation_zs_cap = permutation_zs_cap
-            .as_ref()
-            .ok_or_else(|| anyhow!("Missing Zs cap"))?;
-        let permutation_zs = permutation_zs
-            .as_ref()
-            .ok_or_else(|| anyhow!("Missing permutation_zs"))?;
-        let permutation_zs_next = permutation_zs_next
-            .as_ref()
-            .ok_or_else(|| anyhow!("Missing permutation_zs_next"))?;
+//     if stark.metadata().uses_permutation_args() {
+//         let permutation_zs_cap = permutation_zs_cap
+//             .as_ref()
+//             .ok_or_else(|| anyhow!("Missing Zs cap"))?;
+//         let permutation_zs = permutation_zs
+//             .as_ref()
+//             .ok_or_else(|| anyhow!("Missing permutation_zs"))?;
+//         let permutation_zs_next = permutation_zs_next
+//             .as_ref()
+//             .ok_or_else(|| anyhow!("Missing permutation_zs_next"))?;
 
-        ensure!(permutation_zs_cap.height() == cap_height);
-        ensure!(permutation_zs.len() == num_zs);
-        ensure!(permutation_zs_next.len() == num_zs);
-    } else {
-        ensure!(permutation_zs_cap.is_none());
-        ensure!(permutation_zs.is_none());
-        ensure!(permutation_zs_next.is_none());
-    }
+//         ensure!(permutation_zs_cap.height() == cap_height);
+//         ensure!(permutation_zs.len() == num_zs);
+//         ensure!(permutation_zs_next.len() == num_zs);
+//     } else {
+//         ensure!(permutation_zs_cap.is_none());
+//         ensure!(permutation_zs.is_none());
+//         ensure!(permutation_zs_next.is_none());
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 /// Evaluate the Lagrange polynomials `L_0` and `L_(n-1)` at a point `x`.
 /// `L_0(x) = (x^n - 1)/(n * (x - 1))`

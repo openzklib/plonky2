@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 
+use itertools::Itertools;
 use plonky2::field::extension::Extendable;
 use plonky2::field::polynomial::PolynomialCoeffs;
 use plonky2::fri::proof::{FriProof, FriProofTarget};
@@ -12,14 +13,147 @@ use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 
 use crate::config::StarkConfig;
+use crate::cross_table_lookup::{CtlDescriptor, CtlLinearCombChallenge, CtlChallenge, get_ctl_linear_comb_challenge, get_ctl_challenge};
 use crate::permutation::{
     get_n_permutation_challenge_sets, get_n_permutation_challenge_sets_target,
 };
 use crate::proof::*;
 use crate::stark::StarkConfiguration;
 
+// makes a challenger and overves the trace caps
+pub fn start_all_proof_challenger<'a, F, C, I, const D: usize>(
+    trace_caps: I,
+) -> Challenger<F, C::Hasher>
+where
+    I: Iterator<Item = &'a MerkleCap<F, C::Hasher>>,
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    <C as GenericConfig<D>>::Hasher: 'a,
+{
+    let mut challenger = Challenger::<F, C::Hasher>::new();
+
+    for cap in trace_caps {
+        challenger.observe_cap(cap);
+    }
+
+    challenger
+}
+
+// assumes `start_all_proof_challenges` was used to get the challenger
+pub fn get_ctl_challenges_by_table<F, C, const D: usize>(
+    challenger: &mut Challenger<F, C::Hasher>,
+    ctl_descriptor: &CtlDescriptor,
+    num_challenges: usize,
+) -> (
+    Vec<Vec<CtlLinearCombChallenge<F>>>,
+    Vec<Vec<CtlChallenge<F>>>,
+)
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+{
+    let mut linear_comb_challenges_by_table =
+        vec![(Vec::new(), Vec::new()); ctl_descriptor.num_tables];
+    let mut ctl_challenges_by_table = vec![(Vec::new(), Vec::new()); ctl_descriptor.num_tables];
+    for (looking, looked) in ctl_descriptor.instances.iter() {
+        let linear_comb_challenges = (0..num_challenges)
+            .map(|_| get_ctl_linear_comb_challenge(challenger))
+            .collect_vec();
+
+        let ctl_challenges = (0..num_challenges)
+            .map(|_| get_ctl_challenge(challenger))
+            .collect_vec();
+
+        linear_comb_challenges_by_table[looking.tid.0]
+            .0
+            .extend(linear_comb_challenges.clone());
+        linear_comb_challenges_by_table[looked.tid.0]
+            .1
+            .extend(linear_comb_challenges);
+
+        ctl_challenges_by_table[looking.tid.0]
+            .0
+            .extend(ctl_challenges.clone());
+        ctl_challenges_by_table[looked.tid.0]
+            .1
+            .extend(ctl_challenges);
+    }
+
+    let linear_comb_challenges_by_table = linear_comb_challenges_by_table
+        .into_iter()
+        .map(|(looking, looked)| [looking, looked].concat())
+        .collect_vec();
+
+    let ctl_challenges_by_table = ctl_challenges_by_table
+        .into_iter()
+        .map(|(looking, looked)| [looking, looked].concat())
+        .collect_vec();
+
+    (linear_comb_challenges_by_table, ctl_challenges_by_table)
+}
+
+// IMPORTANT: assumes `challenger` has already observed the trace caps and the ctl challenges have already been extracted
+fn get_single_table_challenges<F, C, S, const D: usize>(
+    stark: &S,
+    challenger: &mut Challenger<F, C::Hasher>,
+    permutation_zs_cap: Option<&MerkleCap<F, C::Hasher>>,
+    ctl_zs_cap: Option<&MerkleCap<F, C::Hasher>>,
+    quotient_polys_cap: &MerkleCap<F, C::Hasher>,
+    openings: &StarkOpeningSet<F, D>,
+    commit_phase_merkle_caps: &[MerkleCap<F, C::Hasher>],
+    final_poly: &PolynomialCoeffs<F::Extension>,
+    pow_witness: F,
+    config: &StarkConfig,
+    degree_bits: usize,
+) -> StarkProofChallenges<F, D>
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+    S: StarkConfiguration,
+{
+    let num_challenges = config.num_challenges;
+    let metadata = stark.metadata();
+
+    let permutation_challenge_sets = permutation_zs_cap.map(|permutation_zs_cap| {
+        let tmp = get_n_permutation_challenge_sets(
+            challenger,
+            num_challenges,
+            metadata.permutation_batch_size(),
+        );
+        challenger.observe_cap(permutation_zs_cap);
+        tmp
+    });
+
+    if let Some(cap) = ctl_zs_cap {
+        challenger.observe_cap(cap);
+    }
+
+    let stark_alphas = challenger.get_n_challenges(num_challenges);
+
+    challenger.observe_cap(quotient_polys_cap);
+
+    let stark_zeta = challenger.get_extension_challenge::<D>();
+
+    challenger.observe_openings(&openings.to_fri_openings());
+
+    let fri_challenges = challenger.fri_challenges::<C, D>(
+        commit_phase_merkle_caps,
+        final_poly,
+        pow_witness,
+        degree_bits,
+        &config.fri_config,
+    );
+
+    StarkProofChallenges {
+        permutation_challenge_sets,
+        stark_alphas,
+        stark_zeta,
+        fri_challenges,
+    }
+}
+
 #[allow(clippy::too_many_arguments)] // NOTE: Clippy is too harsh here.
-fn get_challenges<F, C, S, const D: usize>(
+fn get_stark_challenges<F, C, S, const D: usize>(
     stark: &S,
     trace_cap: &MerkleCap<F, C::Hasher>,
     permutation_zs_cap: Option<&MerkleCap<F, C::Hasher>>,
@@ -80,7 +214,7 @@ where
 {
     // TODO: Should be used later in compression?
     #![allow(dead_code)]
-    pub(crate) fn fri_query_indices<S>(
+    pub(crate) fn fri_query_indices_no_ctl<S>(
         &self,
         stark: &S,
         config: &StarkConfig,
@@ -89,13 +223,13 @@ where
     where
         S: StarkConfiguration,
     {
-        self.get_challenges(stark, config, degree_bits)
+        self.get_stark_challenges_no_ctl(stark, config, degree_bits)
             .fri_challenges
             .fri_query_indices
     }
 
     /// Computes all Fiat-Shamir challenges used in the STARK proof.
-    pub(crate) fn get_challenges<S>(
+    pub(crate) fn get_stark_challenges_no_ctl<S>(
         &self,
         stark: &S,
         config: &StarkConfig,
@@ -107,6 +241,7 @@ where
         let StarkProof {
             trace_cap,
             permutation_zs_cap,
+            ctl_zs_cap,
             quotient_polys_cap,
             openings,
             opening_proof:
@@ -117,10 +252,54 @@ where
                     ..
                 },
         } = &self.proof;
-        get_challenges::<F, C, S, D>(
+
+        assert!(
+            ctl_zs_cap.is_none(),
+            "CTLs not supported in `get_stark_challenges_no_ctl`"
+        );
+
+        get_stark_challenges::<F, C, S, D>(
             stark,
             trace_cap,
             permutation_zs_cap.as_ref(),
+            quotient_polys_cap,
+            openings,
+            commit_phase_merkle_caps,
+            final_poly,
+            *pow_witness,
+            config,
+            degree_bits,
+        ) 
+    }
+
+    /// Computes Fiat-Shamir challenges for this specific proof within an `AllProof`
+    pub(crate) fn get_stark_challenges_with_ctl<S: StarkConfiguration>(
+        &self,
+        stark: &S,
+        config: &StarkConfig,
+        challenger: &mut Challenger<F, C::Hasher>,
+        degree_bits: usize,
+    ) -> StarkProofChallenges<F, D> {
+        let StarkProof {
+            trace_cap: _,
+            permutation_zs_cap,
+            ctl_zs_cap,
+            quotient_polys_cap,
+            openings,
+            opening_proof:
+                FriProof {
+                    commit_phase_merkle_caps,
+                    final_poly,
+                    pow_witness,
+                    ..
+                },
+        } = &self.proof;
+
+        get_single_table_challenges::<F, C, S, D>(
+            stark,
+            challenger,
+            permutation_zs_cap.as_ref(),
+            ctl_zs_cap.as_ref(),
             quotient_polys_cap,
             openings,
             commit_phase_merkle_caps,
