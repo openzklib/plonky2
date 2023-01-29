@@ -417,7 +417,7 @@ pub trait Assertions<F>: Sized {
     where
         Self: ConstraintFiltered<F, Transition> + Sub<F>,
     {
-        let diff = self.sub(curr, next);
+        let diff = self.sub(next, curr);
         self.assert_eq_transition(&diff, step)
     }
 
