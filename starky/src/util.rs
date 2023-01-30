@@ -25,7 +25,12 @@ pub fn trace_rows_to_poly_values<F: Field, const COLUMNS: usize>(
         .collect()
 }
 
-pub(crate) unsafe fn transmute_no_compile_time_size_checks<T, U>(value: T) -> U {
+/// Transmutes `value` without compile-time size checks.
+///
+/// # Safety
+///
+/// The same safety requirements as [`transmute_copy`].
+pub unsafe fn transmute_no_compile_time_size_checks<T, U>(value: T) -> U {
     debug_assert_eq!(size_of::<T>(), size_of::<U>());
     // Need ManuallyDrop so that `value` is not dropped by this function.
     let value = ManuallyDrop::new(value);

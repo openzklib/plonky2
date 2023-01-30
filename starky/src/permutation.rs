@@ -292,8 +292,8 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
     } = permutation_data;
 
     // Check that Z(1) = 1;
-    for &z in &local_zs {
-        ConsumerCompiler::new(&mut consumer, &mut ()).assert_eq_first_row(z, P::ONES);
+    for z in &local_zs {
+        ConsumerCompiler::new(&mut consumer, &mut ()).assert_eq_first_row(z, &P::ONES);
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -329,7 +329,7 @@ pub(crate) fn eval_permutation_checks<F, FE, P, C, S, const D: usize, const D2: 
             .unzip();
         let constraint = next_zs[i] * reduced_rhs.into_iter().product::<P>()
             - local_zs[i] * reduced_lhs.into_iter().product::<P>();
-        consumer.constraint(constraint, &mut ());
+        consumer.constraint(&constraint, &mut ());
     }
 }
 
@@ -352,8 +352,8 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
 
     let one = builder.one_extension();
     // Check that Z(1) = 1;
-    for &z in &local_zs {
-        ConsumerCompiler::new(&mut consumer, &mut builder).assert_eq_first_row(z, one);
+    for z in &local_zs {
+        ConsumerCompiler::new(&mut consumer, &mut builder).assert_eq_first_row(z, &one);
     }
 
     let permutation_pairs = stark.permutation_pairs();
@@ -397,7 +397,7 @@ pub(crate) fn eval_permutation_checks_circuit<F, S, const D: usize>(
             let tmp = builder.mul_extension(local_zs[i], reduced_lhs_product);
             builder.mul_sub_extension(next_zs[i], reduced_rhs_product, tmp)
         };
-        consumer.constraint(constraint, builder)
+        consumer.constraint(&constraint, builder)
     }
 }
 

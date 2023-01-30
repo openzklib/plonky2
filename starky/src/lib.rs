@@ -1,13 +1,17 @@
+//! STARKs!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 extern crate alloc;
 
-mod get_challenges;
-
 pub mod config;
 pub mod consumer;
+pub mod gate;
+pub mod get_challenges;
 pub mod ir;
+pub mod lookup;
 pub mod permutation;
 pub mod proof;
 pub mod prover;
