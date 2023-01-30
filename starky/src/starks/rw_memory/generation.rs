@@ -144,7 +144,6 @@ where
                 (addr, timestamp, value, is_write)
             })
             .sorted_by_cached_key(|(addr, timestamp, _, _)| (*addr, *timestamp));
-
         let mut prev_timestamp = None;
         let mut prev_addr = F::ZERO;
         for (i, (addr, timestamp, value, is_write)) in sorted_accesses.enumerate() {
@@ -153,7 +152,6 @@ where
             row.timestamp_sorted = F::from_canonical_u64(timestamp);
             row.value_sorted = value;
             row.is_write_sorted = is_write;
-
             (row.timestamp_sorted_diff, prev_timestamp) = match prev_timestamp {
                 None => (F::ONE, Some(row.timestamp_sorted)),
                 Some(prev) => {
@@ -165,7 +163,6 @@ where
                     }
                 }
             };
-
             prev_addr = row.addr_sorted;
         }
     }
@@ -178,7 +175,6 @@ where
 
     fn pad_to_len(&mut self, log2_target_len: usize) {
         let target_len = 1 << (log2_ceil(self.trace.len()).max(log2_target_len));
-
         while self.trace.len() < target_len {
             self.gen_read(0, &[]);
         }
@@ -194,10 +190,8 @@ where
         );
         self.pad_to_len(log2_target_degree);
         self.gen_sorted();
-
         let mut values = trace_rows_to_poly_values(self.trace);
         Self::gen_luts(&mut values);
-
         values
     }
 

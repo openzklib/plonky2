@@ -83,7 +83,6 @@ mod tests {
 
         let stark = S::default();
         let metadata = stark.metadata();
-        println!("Metadata: {:?}", metadata);
         test_stark_low_degree::<F, S, D>(stark, metadata.columns, metadata.public_inputs)?;
         test_stark_circuit_constraints::<F, C, S, D>(
             stark,

@@ -11,17 +11,9 @@ use crate::stark::StandardConstraint;
 
 // TODO: use crate::cross_table_lookup::{CtlColSet, TableID};
 
-/// Sorted Column Pair
-pub struct Sorted<T> {
-    /// Value Column
-    pub value: T,
-
-    /// Sorted Value Column
-    pub sorted: T,
-}
-
 /// Read/Write Memory Gate
 #[derive(Clone, Debug)]
+#[repr(C)]
 pub struct RwMemoryGate<T, const CHANNELS: usize> {
     /// Address
     pub addr: T,

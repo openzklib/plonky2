@@ -1,22 +1,23 @@
-use std::borrow::{Borrow, BorrowMut};
+//! Stack Gate Generator
 
 use itertools::Itertools;
-use plonky2::field::{
-    polynomial::PolynomialValues,
-    types::{Field, PrimeField64},
-};
-use plonky2_util::log2_ceil;
+use plonky2::field::polynomial::PolynomialValues;
+use plonky2::field::types::{Field, PrimeField64};
+use plonky2::util::log2_ceil;
 
-use super::layout::*;
-use crate::{lookup::permuted_cols, util::trace_rows_to_poly_values};
+use crate::lookup::{assign_lookup_table, permuted_columns};
+use crate::starks::stack::layout::lookup_permutation_sets;
+use crate::starks::stack::StackGate;
+use crate::util::trace_rows_to_poly_values;
 
-pub struct StackGenerator<F: Field, const NUM_CHANNELS: usize>
+/// Stack Generator
+pub struct StackGenerator<F: Field, const CHANNELS: usize>
 where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); StackGate::<F, CHANNELS>::SIZE]:,
 {
     timestamp: u64,
     stack: Vec<F>,
-    trace: Vec<[F; STACK_NUM_COLS_BASE + NUM_CHANNELS]>,
+    trace: Vec<[F; StackGate::<F, CHANNELS>::SIZE]>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -25,18 +26,18 @@ pub enum StackOp<F: Field> {
     Pop(F),
 }
 
-impl<F: PrimeField64, const NUM_CHANNELS: usize> Default for StackGenerator<F, NUM_CHANNELS>
+impl<F: PrimeField64, const CHANNELS: usize> Default for StackGenerator<F, CHANNELS>
 where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); StackGate::<F, CHANNELS>::SIZE]:,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<F: PrimeField64, const NUM_CHANNELS: usize> StackGenerator<F, NUM_CHANNELS>
+impl<F: PrimeField64, const CHANNELS: usize> StackGenerator<F, CHANNELS>
 where
-    [(); STACK_NUM_COLS_BASE + NUM_CHANNELS]:,
+    [(); StackGate::<F, CHANNELS>::SIZE]:,
 {
     pub fn new() -> Self {
         Self {
@@ -62,15 +63,15 @@ where
     }
 
     pub fn gen_push(&mut self, value: F, channels: &[usize]) {
-        let mut row = StackRow::<F, NUM_CHANNELS>::new();
+        let mut row = StackGate::<F, CHANNELS>::default();
 
         row.is_pop = F::ZERO;
         row.sp = F::from_canonical_u64(self.stack.len() as u64);
 
-        row.timestamp = F::from_canonical_u64(self.timestamp);
-        row.addr = F::from_canonical_u64(self.stack.len() as u64);
-        row.value = value;
-        row.is_write = F::ONE;
+        row.rw_memory.timestamp = F::from_canonical_u64(self.timestamp);
+        row.rw_memory.addr = F::from_canonical_u64(self.stack.len() as u64);
+        row.rw_memory.value = value;
+        row.rw_memory.is_write = F::ONE;
 
         Self::gen_channel_filters(&mut row, channels);
 
@@ -80,17 +81,17 @@ where
     }
 
     pub fn gen_pop(&mut self, channels: &[usize]) -> F {
-        let mut row = StackRow::<F, NUM_CHANNELS>::new();
+        let mut row = StackGate::<F, CHANNELS>::default();
         let sp = self.stack.len() as u64;
         let value = self.stack.pop().expect("stack underflow");
 
         row.is_pop = F::ONE;
         row.sp = F::from_canonical_u64(sp);
 
-        row.timestamp = F::from_canonical_u64(self.timestamp);
-        row.addr = F::from_canonical_u64(self.stack.len() as u64);
-        row.value = value;
-        row.is_write = F::ZERO;
+        row.rw_memory.timestamp = F::from_canonical_u64(self.timestamp);
+        row.rw_memory.addr = F::from_canonical_u64(self.stack.len() as u64);
+        row.rw_memory.value = value;
+        row.rw_memory.is_write = F::ZERO;
 
         Self::gen_channel_filters(&mut row, channels);
 
@@ -99,10 +100,10 @@ where
         value
     }
 
-    fn gen_channel_filters(row: &mut StackRow<F, NUM_CHANNELS>, channels: &[usize]) {
+    fn gen_channel_filters(row: &mut StackGate<F, CHANNELS>, channels: &[usize]) {
         for &channel in channels {
-            debug_assert!(channel < NUM_CHANNELS);
-            row.filter_cols[channel] = F::ONE;
+            debug_assert!(channel < CHANNELS);
+            row.rw_memory.filter_cols[channel] = F::ONE;
         }
     }
 
@@ -111,53 +112,45 @@ where
             .trace
             .iter()
             .map(|row_arr| {
-                let row: &StackRow<F, NUM_CHANNELS> = row_arr.borrow();
-                let addr = row.addr.to_canonical_u64();
-                let timestamp = row.timestamp.to_canonical_u64();
-                let value = row.value;
-                let is_write = row.is_write;
+                let row = StackGate::<F, CHANNELS>::borrow(row_arr);
+                let addr = row.rw_memory.addr.to_canonical_u64();
+                let timestamp = row.rw_memory.timestamp.to_canonical_u64();
+                let value = row.rw_memory.value;
+                let is_write = row.rw_memory.is_write;
                 (addr, timestamp, value, is_write)
             })
             .sorted_by_cached_key(|(addr, timestamp, _, _)| (*addr, *timestamp));
-
         let mut prev_timestamp = None;
         let mut prev_addr = F::ZERO;
         for (i, (addr, timestamp, value, is_write)) in sorted_accesses.enumerate() {
-            let mut row: &mut StackRow<F, NUM_CHANNELS> = self.trace[i].borrow_mut();
-            row.addr_sorted = F::from_canonical_u64(addr);
-            row.timestamp_sorted = F::from_canonical_u64(timestamp);
-            row.value_sorted = value;
-            row.is_write_sorted = is_write;
-
-            (row.timestamp_sorted_diff, prev_timestamp) = match prev_timestamp {
-                None => (F::ONE, Some(row.timestamp_sorted)),
+            let row = StackGate::<F, CHANNELS>::borrow_mut(&mut self.trace[i]);
+            row.rw_memory.addr_sorted = F::from_canonical_u64(addr);
+            row.rw_memory.timestamp_sorted = F::from_canonical_u64(timestamp);
+            row.rw_memory.value_sorted = value;
+            row.rw_memory.is_write_sorted = is_write;
+            (row.rw_memory.timestamp_sorted_diff, prev_timestamp) = match prev_timestamp {
+                None => (F::ONE, Some(row.rw_memory.timestamp_sorted)),
                 Some(prev) => {
-                    if prev_addr == row.addr_sorted {
-                        let diff = row.timestamp_sorted - prev;
-                        (diff, Some(row.timestamp_sorted))
+                    if prev_addr == row.rw_memory.addr_sorted {
+                        let diff = row.rw_memory.timestamp_sorted - prev;
+                        (diff, Some(row.rw_memory.timestamp_sorted))
                     } else {
-                        (F::ONE, Some(row.timestamp_sorted))
+                        (F::ONE, Some(row.rw_memory.timestamp_sorted))
                     }
                 }
             };
-
-            prev_addr = row.addr_sorted;
+            prev_addr = row.rw_memory.addr_sorted;
         }
     }
 
-    fn gen_luts(cols: &mut [PolynomialValues<F>]) {
-        for (input, table, input_permuted, table_permuted) in lookup_permutation_sets().into_iter()
-        {
-            let (permuted_input, permuted_table) =
-                permuted_cols(&cols[input].values, &cols[table].values);
-            cols[input_permuted] = PolynomialValues::new(permuted_input);
-            cols[table_permuted] = PolynomialValues::new(permuted_table);
+    fn gen_luts(columns: &mut [PolynomialValues<F>]) {
+        for (input, table, input_permuted, table_permuted) in lookup_permutation_sets() {
+            assign_lookup_table(input, table, input_permuted, table_permuted, columns);
         }
     }
 
     fn pad_to_len(&mut self, log2_target_len: usize) {
         let target_len = 1 << (log2_ceil(self.trace.len()).max(log2_target_len));
-
         while self.trace.len() < target_len {
             self.gen_push(F::ZERO, &[]);
         }
@@ -169,10 +162,8 @@ where
     ) -> Vec<PolynomialValues<F>> {
         self.pad_to_len(log2_target_degree);
         self.gen_sorted();
-
         let mut values = trace_rows_to_poly_values(self.trace);
         Self::gen_luts(&mut values);
-
         values
     }
 
