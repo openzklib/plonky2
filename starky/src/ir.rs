@@ -403,6 +403,15 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_one_transition(&mut self, value: &F) -> &mut Self
+    where
+        Self: ConstraintFiltered<F, Transition> + Sub<F> + One<F>,
+    {
+        self.assert_one_when(Transition, value)
+    }
+
+    ///
+    #[inline]
     fn assert_zero_product_transition(&mut self, lhs: &F, rhs: &F) -> &mut Self
     where
         Self: ConstraintFiltered<F, Transition> + Mul<F>,
@@ -441,6 +450,15 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_one_first_row(&mut self, value: &F) -> &mut Self
+    where
+        Self: ConstraintFiltered<F, FirstRow> + Sub<F> + One<F>,
+    {
+        self.assert_one_when(FirstRow, value)
+    }
+
+    ///
+    #[inline]
     fn assert_zero_last_row(&mut self, value: &F) -> &mut Self
     where
         Self: ConstraintFiltered<F, LastRow>,
@@ -455,6 +473,15 @@ pub trait Assertions<F>: Sized {
         Self: ConstraintFiltered<F, LastRow> + Sub<F>,
     {
         self.assert_eq_when(LastRow, lhs, rhs)
+    }
+
+    ///
+    #[inline]
+    fn assert_one_last_row(&mut self, value: &F) -> &mut Self
+    where
+        Self: ConstraintFiltered<F, LastRow> + Sub<F> + One<F>,
+    {
+        self.assert_one_when(LastRow, value)
     }
 
     ///

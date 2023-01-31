@@ -144,3 +144,6 @@ pub fn assign_lookup_table<F>(
     columns[input_permuted] = PolynomialValues::new(permuted_input);
     columns[table_permuted] = PolynomialValues::new(permuted_table);
 }
+
+/// Lookup Oracle
+pub struct Oracle<G>(G);

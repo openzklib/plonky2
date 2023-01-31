@@ -60,15 +60,14 @@ where
     }
 
     pub fn gen_write(&mut self, addr: usize, value: F, channels: &[usize]) {
-        let mut row = RwMemoryGate::<F, CHANNELS>::default();
-
-        row.timestamp = F::from_canonical_u64(self.timestamp);
-        row.addr = F::from_canonical_u64(addr as u64);
-        row.value = value;
-        row.is_write = F::ONE;
-
+        let mut row = RwMemoryGate {
+            timestamp: F::from_canonical_u64(self.timestamp),
+            addr: F::from_canonical_u64(addr as u64),
+            value,
+            is_write: F::ONE,
+            ..Default::default()
+        };
         Self::gen_channel_filters(&mut row, channels);
-
         self.write_to_mem(addr, value);
         self.trace.push(row.into());
         self.timestamp += 1;

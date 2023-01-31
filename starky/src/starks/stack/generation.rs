@@ -5,7 +5,7 @@ use plonky2::field::polynomial::PolynomialValues;
 use plonky2::field::types::{Field, PrimeField64};
 use plonky2::util::log2_ceil;
 
-use crate::lookup::{assign_lookup_table, permuted_columns};
+use crate::lookup::assign_lookup_table;
 use crate::starks::stack::layout::lookup_permutation_sets;
 use crate::starks::stack::StackGate;
 use crate::util::trace_rows_to_poly_values;
@@ -63,10 +63,11 @@ where
     }
 
     pub fn gen_push(&mut self, value: F, channels: &[usize]) {
-        let mut row = StackGate::<F, CHANNELS>::default();
-
-        row.is_pop = F::ZERO;
-        row.sp = F::from_canonical_u64(self.stack.len() as u64);
+        let mut row = StackGate {
+            is_pop: F::ZERO,
+            sp: F::from_canonical_u64(self.stack.len() as u64),
+            ..Default::default()
+        };
 
         row.rw_memory.timestamp = F::from_canonical_u64(self.timestamp);
         row.rw_memory.addr = F::from_canonical_u64(self.stack.len() as u64);

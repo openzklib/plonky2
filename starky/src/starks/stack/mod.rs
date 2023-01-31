@@ -3,7 +3,7 @@
 
 use crate::consumer::Compiler;
 use crate::gate::{Gate, Read};
-use crate::ir::{Add, Arithmetic, Assertions, Constraint, One, Sub};
+use crate::ir::{Arithmetic, Assertions, Constraint, One, Sub};
 use crate::permutation::PermutationPair;
 use crate::stark::{StandardConsumer, Stark, StarkConfiguration};
 use crate::starks::stack::layout::{sorted_access_permutation_pairs, StackGate};
