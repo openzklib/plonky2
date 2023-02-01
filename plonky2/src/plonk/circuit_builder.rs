@@ -44,6 +44,7 @@ use crate::plonk::config::{AlgebraicHasher, GenericConfig, GenericHashOut, Hashe
 use crate::plonk::copy_constraint::CopyConstraint;
 use crate::plonk::permutation_argument::Forest;
 use crate::plonk::plonk_common::PlonkOracle;
+use crate::recursion::padding_experiments::{PaddedSelectorsInfoTarget, PaddedVerifierDataTarget};
 use crate::timed;
 use crate::util::context_tree::ContextTree;
 use crate::util::partial_products::num_partial_products;
@@ -243,6 +244,36 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         let t = self.add_virtual_target();
         self.register_public_input(t);
         t
+    }
+
+    pub fn add_virtual_padded_selectors_info(
+        &mut self,
+        num_gates: usize,
+    ) -> PaddedSelectorsInfoTarget {
+        PaddedSelectorsInfoTarget {
+            padding_value: self.add_virtual_bool_target_unsafe(),
+            selector_bits: (0..num_gates)
+                .map(|_| self.add_virtual_bool_target_unsafe())
+                .collect(),
+            selector_index: self.add_virtual_target(),
+            many_selectors: self.add_virtual_bool_target_unsafe(),
+        }
+    }
+
+    pub fn add_virtual_padded_verifier_data(
+        &mut self,
+        cap_height: usize,
+        num_gates: usize,
+    ) -> PaddedVerifierDataTarget {
+        PaddedVerifierDataTarget {
+            instance_verifier_data: VerifierCircuitTarget {
+                constants_sigmas_cap: self.add_virtual_cap(cap_height),
+                circuit_digest: self.add_virtual_hash(),
+            }, // use add_virtual_verifier_data below
+            selector_info: (0..num_gates)
+                .map(|_| self.add_virtual_padded_selectors_info(num_gates))
+                .collect(),
+        }
     }
 
     pub fn add_virtual_verifier_data(&mut self, cap_height: usize) -> VerifierCircuitTarget {

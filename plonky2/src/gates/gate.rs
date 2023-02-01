@@ -146,7 +146,6 @@ pub trait Gate<F: RichField + Extendable<D>, const D: usize>: 'static + Send + S
         num_selectors: usize,
         combined_gate_constraints: &mut [ExtensionTarget<D>],
     ) {
-        println!("Filtered eval for gate {}", self.id());
         let filter = compute_filter_circuit(
             builder,
             row,
@@ -271,6 +270,5 @@ fn compute_filter_circuit<F: RichField + Extendable<D>, const D: usize>(
             builder.sub_extension(c, s)
         })
         .collect::<Vec<_>>();
-    println!("Computed filter as a product of {} values", v.len());
     builder.mul_many_extension(v)
 }

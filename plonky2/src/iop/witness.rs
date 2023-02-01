@@ -16,6 +16,9 @@ use crate::iop::wire::Wire;
 use crate::plonk::circuit_data::{VerifierCircuitTarget, VerifierOnlyCircuitData};
 use crate::plonk::config::{AlgebraicHasher, GenericConfig, Hasher};
 use crate::plonk::proof::{Proof, ProofTarget, ProofWithPublicInputs, ProofWithPublicInputsTarget};
+use crate::recursion::padding_experiments::{
+    PaddedSelectorsInfo, PaddedSelectorsInfoTarget, PaddedVerifierData, PaddedVerifierDataTarget,
+};
 
 pub trait WitnessWrite<F: Field> {
     fn set_target(&mut self, target: Target, value: F);
@@ -134,6 +137,49 @@ pub trait WitnessWrite<F: Field> {
         {
             self.set_extension_targets(&batch_target.values, &batch.values);
         }
+    }
+
+    fn set_padded_selectors_info_target(
+        &mut self,
+        sit: &PaddedSelectorsInfoTarget,
+        si: &PaddedSelectorsInfo,
+    ) {
+        self.set_bool_target(sit.padding_value, si.padding_value);
+        let _ = sit
+            .selector_bits
+            .iter()
+            .zip(si.selector_bits.iter())
+            .map(|(&bt, &b)| {
+                self.set_bool_target(bt, b);
+            })
+            .collect::<Vec<_>>();
+        self.set_target(
+            sit.selector_index,
+            F::from_canonical_usize(si.selector_index),
+        );
+        self.set_bool_target(sit.many_selectors, si.num_selectors);
+    }
+
+    fn set_padded_verifier_data_target<C: GenericConfig<D, F = F>, const D: usize>(
+        &mut self,
+        vdt: &PaddedVerifierDataTarget,
+        vd: &PaddedVerifierData<F, C, D>,
+    ) where
+        F: RichField + Extendable<D>,
+        C::Hasher: AlgebraicHasher<F>,
+    {
+        self.set_verifier_data_target(
+            &vdt.instance_verifier_data,
+            &vd.instance_verifier_data.verifier_only,
+        );
+        let _ = vdt
+            .selector_info
+            .iter()
+            .zip(vd.selector_info.iter())
+            .map(|(sit, si)| {
+                self.set_padded_selectors_info_target(sit, si);
+            })
+            .collect::<Vec<_>>();
     }
 
     fn set_verifier_data_target<C: GenericConfig<D, F = F>, const D: usize>(
