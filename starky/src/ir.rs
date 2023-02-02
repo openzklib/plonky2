@@ -486,6 +486,36 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_all_zero<I>(&mut self, iter: I) -> &mut Self
+    where
+        Self: Constraint<F>,
+        I: IntoIterator,
+        I::Item: Borrow<F>,
+    {
+        for item in iter {
+            self.assert_zero(item.borrow());
+        }
+        self
+    }
+
+    ///
+    #[inline]
+    fn assert_valid_zero_check(&mut self, is_zero: F, value: &F, inverse: &F) -> &mut Self
+    where
+        Self: Constraint<F> + Mul<F> + One<F> + Sub<F>,
+        F: Clone,
+    {
+        let prod = self.mul(value, inverse);
+        self.when(is_zero)
+            .assert_zero(value)
+            .assert_zero(inverse)
+            .otherwise()
+            .assert_one(&prod);
+        self
+    }
+
+    ///
+    #[inline]
     fn when(&mut self, condition: F) -> Branch<F, Self> {
         Branch {
             condition,
@@ -534,6 +564,19 @@ pub struct Branch<'t, F, COM> {
 
     /// Base Compiler
     compiler: &'t mut COM,
+}
+
+impl<'t, F, COM> Branch<'t, F, COM> {
+    ///
+    #[inline]
+    pub fn otherwise(&mut self) -> &mut Self
+    where
+        COM: Sub<F> + One<F>,
+    {
+        let one = self.compiler.one();
+        self.condition = self.compiler.sub(&one, &self.condition);
+        self
+    }
 }
 
 impl<'t, F, COM> Add<F> for Branch<'t, F, COM>
