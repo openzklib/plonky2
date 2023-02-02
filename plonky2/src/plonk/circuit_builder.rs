@@ -264,14 +264,22 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         &mut self,
         cap_height: usize,
         num_gates: usize,
+        num_routed_wires: usize,
+        num_partial_products: usize,
     ) -> PaddedVerifierDataTarget {
         PaddedVerifierDataTarget {
-            instance_verifier_data: VerifierCircuitTarget {
-                constants_sigmas_cap: self.add_virtual_cap(cap_height),
-                circuit_digest: self.add_virtual_hash(),
-            }, // use add_virtual_verifier_data below
+            instance_verifier_data: self.add_virtual_verifier_data(cap_height),
             selector_info: (0..num_gates)
                 .map(|_| self.add_virtual_padded_selectors_info(num_gates))
+                .collect(),
+            k_is: (0..num_routed_wires)
+                .map(|_| self.add_virtual_target())
+                .collect(),
+            used_wires: (0..num_routed_wires)
+                .map(|_| self.add_virtual_bool_target_unsafe())
+                .collect(),
+            used_partial_product: (0..num_partial_products)
+                .map(|_| self.add_virtual_bool_target_unsafe())
                 .collect(),
         }
     }

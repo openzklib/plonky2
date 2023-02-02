@@ -63,74 +63,73 @@ where
 ///
 pub type GoldilocksProofTuple = ProofTuple<GoldilocksField, PoseidonGoldilocksConfig, 2>;
 
-/// Produce common data for the padded verifier.
-pub fn padded_common_data() -> CommonCircuitData<GoldilocksField, 2>
-where
-{
-    // TODO: Figure out how to choose this. For now this just returns the common data of a
-    // factorial circuit with size 5.
-    use circuits::factorial_proof;
-    let log2_size = 5;
-    factorial_proof::<_, PoseidonGoldilocksConfig, 2>(
-        &CircuitConfig::standard_recursion_config(),
-        log2_size,
-    )
-    .expect("factorial failed")
-    .common_data
-}
 
 /// Evaluate vanishing polynomial at `x` for "any" circuit up to a maximum size.
-pub fn padded_eval_vanishing_poly_circuit(
-    builder: &mut CircuitBuilder<GoldilocksField, 2>,
-    _instance_common_data: &CommonCircuitData<GoldilocksField, 2>,
-    x: ExtensionTarget<2>,
-    x_pow_deg: ExtensionTarget<2>,
-    vars: EvaluationTargets<2>,
-    local_zs: &[ExtensionTarget<2>],
-    next_zs: &[ExtensionTarget<2>],
-    partial_products: &[ExtensionTarget<2>],
-    s_sigmas: &[ExtensionTarget<2>],
+/// Assumes vars, s_sigmas, partial_products have been padded already. Will still
+/// select on their values to ensure only used wire values make it in to computation.
+pub fn padded_eval_vanishing_poly_circuit<F, C, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    global_common_data: &CommonCircuitData<F, D>,
+    padded_verifier_data: &PaddedVerifierDataTarget,
+    num_selectors: usize,   // How should this be supplied?
+    instance_degree: usize, // How should this be supplied?
+    x: ExtensionTarget<D>,
+    x_pow_deg: ExtensionTarget<D>,
+    vars: EvaluationTargets<D>,
+    local_zs: &[ExtensionTarget<D>],
+    next_zs: &[ExtensionTarget<D>],
+    partial_products: &[ExtensionTarget<D>],
+    s_sigmas: &[ExtensionTarget<D>],
     betas: &[Target],
     gammas: &[Target],
     alphas: &[Target],
-) -> Vec<ExtensionTarget<2>> {
-    let common_data = padded_common_data();
+) -> Vec<ExtensionTarget<D>>
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+{
+    let max_degree = global_common_data.quotient_degree_factor;
+    let num_prods = global_common_data.num_partial_products;
 
-    // Original Body:
-    let max_degree = common_data.quotient_degree_factor;
-    let num_prods = common_data.num_partial_products;
-
-    // TODO: Gate constraints
-    // Maybe give this the full `common_data` but modify `vars.local_constants` to reflect
-    // whether a given gate belongs to `instance_common_data`.
-    // let constraint_terms = with_context!(
-    //     builder,
-    //     "evaluate gate constraints",
-    //     padded_evaluate_gate_constraints_circuit::<GoldilocksField, PoseidonGoldilocksConfig, 2>(
-    //         builder,
-    //         &common_data,
-    //         vars,
-    //     )
-    // );
+    let constraint_terms = with_context!(
+        builder,
+        "evaluate gate constraints",
+        padded_evaluate_gate_constraints_circuit::<F, C, D>(
+            builder,
+            global_common_data,
+            padded_verifier_data,
+            num_selectors,
+            vars,
+        )
+    );
 
     // The L_0(x) (Z(x) - 1) vanishing terms.
     let mut vanishing_z_1_terms = Vec::new();
     // The terms checking the partial products.
     let mut vanishing_partial_products_terms = Vec::new();
 
-    let l_0_x = eval_l_0_circuit(builder, common_data.degree(), x, x_pow_deg);
+    let l_0_x = eval_l_0_circuit(builder, instance_degree, x, x_pow_deg);
 
     // Holds `k[i] * x`.
     // This is constant time so long as the number of sigma polynomials is the same
     let mut s_ids = Vec::new();
-    for j in 0..common_data.config.num_routed_wires {
-        let k = builder.constant(common_data.k_is[j]);
-        s_ids.push(builder.scalar_mul_ext(k, x)); // s_ids would be padded with 1s for extra routed wires
-                                                  // pad s_sigmas here too as s_sigma = select(b, self, 1)
-                                                  // might pad local_wires here too
+    // We don't trust prover to provide only as many values as instance.num_routed_wires, so we filter their input
+    let mut s_sigmas_filtered = Vec::new();
+    let one = builder.one_extension();
+    // Padding here is needed only
+    for j in 0..global_common_data.config.num_routed_wires {
+        // let k = builder.constant(global_common_data.k_is[j]); // no longer constants
+        s_ids.push(builder.scalar_mul_ext(padded_verifier_data.k_is[j], x));
+        
+        s_sigmas_filtered.push(builder.select_ext(
+            padded_verifier_data.used_wires[j],
+            s_sigmas[j],
+            one, // Pad with same value used to pad k_is in `pad_verifier_data`
+        ));
     }
 
-    for i in 0..common_data.config.num_challenges {
+    // TODO: Pad or assume num_challenges is fixed?
+    for i in 0..global_common_data.config.num_challenges {
         let z_x = local_zs[i];
         let z_gx = next_zs[i];
 
@@ -139,34 +138,48 @@ pub fn padded_eval_vanishing_poly_circuit(
 
         let mut numerator_values = Vec::new();
         let mut denominator_values = Vec::new();
+        let beta_ext = builder.convert_to_ext(betas[i]);
+        let gamma_ext = builder.convert_to_ext(gammas[i]);
 
-        // extra
-        for j in 0..common_data.config.num_routed_wires {
+        // Note that the conditional selecting done here is to account for an instance circuit with fewer
+        // routed wires than the global configuration. It's not clear that we need to support this case,
+        // however, as all the standard plonky2 configs use 80 routed wires.
+        for j in 0..global_common_data.config.num_routed_wires {
+            // No need to select on this because below we select num/denom values based on whether wire used
             let wire_value = vars.local_wires[j];
-            let beta_ext = builder.convert_to_ext(betas[i]); // can pull out of this loop?
-            let gamma_ext = builder.convert_to_ext(gammas[i]);
 
             // The numerator is `beta * s_id + wire_value + gamma`, and the denominator is
             // `beta * s_sigma + wire_value + gamma`.
             let wire_value_plus_gamma = builder.add_extension(wire_value, gamma_ext);
-            let numerator = builder.mul_add_extension(beta_ext, s_ids[j], wire_value_plus_gamma);
-            let denominator = // s_ids and s_sigmas will be padded with 1 when extra routed wires
+            let mut numerator =
+                builder.mul_add_extension(beta_ext, s_ids[j], wire_value_plus_gamma);
+            numerator = builder.select_ext(padded_verifier_data.used_wires[j], numerator, one);
+            let mut denominator = // s_ids and s_sigmas will be padded with 1 when extra routed wires
                 builder.mul_add_extension(beta_ext, s_sigmas[j], wire_value_plus_gamma);
+            denominator = builder.select_ext(padded_verifier_data.used_wires[j], denominator, one);
             numerator_values.push(numerator);
             denominator_values.push(denominator);
         }
 
         // The partial products considered for this iteration of `i`.
+        // Note: The padding will have to be "interleaved" with the values for different challenge rounds,
+        // but that happens at witness generation
         let current_partial_products = &partial_products[i * num_prods..(i + 1) * num_prods];
+        let current_partial_products_filtered = current_partial_products
+            .iter()
+            .zip(padded_verifier_data.used_partial_product.iter())
+            .map(|(&value, &bit)| builder.select_ext(bit, value, one))
+            .collect::<Vec<_>>();
         // Check the quotient partial products.
-        // Is this constant time? No, it loops over the numerator/denominator values in chunks
+        // Is this constant time? It loops over the numerator/denominator values in chunks
         // of size max_degree. Also it uses `builder.mul_many_extensions(chunk)`, which multiplies
-        // all elements of a chunk together.
+        // all elements of a chunk together. Since numerator_values and denominator_values have been
+        // padded to global config's size, this is constant time.
         let partial_product_checks = check_partial_products_circuit(
             builder,
             &numerator_values,
             &denominator_values,
-            current_partial_products,
+            &current_partial_products_filtered,
             z_x,
             z_gx,
             max_degree,
@@ -174,10 +187,11 @@ pub fn padded_eval_vanishing_poly_circuit(
         vanishing_partial_products_terms.extend(partial_product_checks);
     }
 
+    // This is now of a fixed size
     let vanishing_terms = [
         vanishing_z_1_terms,
         vanishing_partial_products_terms,
-        // constraint_terms,
+        constraint_terms,
     ]
     .concat();
 
@@ -191,31 +205,8 @@ pub fn padded_eval_vanishing_poly_circuit(
         .collect()
 }
 
-/// Padded form of `VerifierData`
-pub struct PaddedVerifierData<F, C, const D: usize>
-where
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-{
-    /// The verifier data of some circuit
-    pub instance_verifier_data: VerifierCircuitData<F, C, D>,
-
-    /// For each gate of some global gate list, a `Vec<bool>` encoding its representation
-    /// within the selector groups of `instance_verifier_data`.
-    pub selector_info: Vec<PaddedSelectorsInfo>,
-}
-
-/// Target version of `PaddedVerifierData
-pub struct PaddedVerifierDataTarget {
-    /// The verifier data of some circuit
-    pub instance_verifier_data: VerifierCircuitTarget,
-
-    /// For each gate of some global gate list, a `PaddedSelectorsInfoTarget` encoding its representation
-    /// within the selector groups of `instance_verifier_data`.
-    pub selector_info: Vec<PaddedSelectorsInfoTarget>,
-}
-
 /// The selector data of a single gate from global gate list.
+#[derive(Debug, Clone)]
 pub struct PaddedSelectorsInfo {
     /// 0 if gate is unused in instance circuit, 1 if used.
     pub padding_value: bool,
@@ -231,6 +222,7 @@ pub struct PaddedSelectorsInfo {
 }
 
 /// Target carrying selector data of a single gate from global gate list.
+#[derive(Debug, Clone)]
 pub struct PaddedSelectorsInfoTarget {
     /// 0 if gate is unused in instance circuit, 1 if used.
     pub padding_value: BoolTarget,
@@ -247,8 +239,54 @@ pub struct PaddedSelectorsInfoTarget {
     pub many_selectors: BoolTarget,
 }
 
-/// Pads `instance_verifier_data` relative to `global_common_data` by reexpressing the gate selector
-/// groups in terms of the global gate set.
+/// Padded form of `VerifierData`
+/// There could be a compressed "Pre-PaddedVerifierData" that this is computed from, e.g. used_wires: usize
+#[derive(Debug, Clone)]
+pub struct PaddedVerifierData<F, C, const D: usize>
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+{
+    /// The verifier data of some circuit
+    pub instance_verifier_data: VerifierCircuitData<F, C, D>,
+
+    /// For each gate of some global gate list, a `Vec<bool>` encoding its representation
+    /// within the selector groups of `instance_verifier_data`.
+    pub selector_info: Vec<PaddedSelectorsInfo>,
+
+    /// For each wire of global common data, k_i coset shift value if used in instance and 0 otherwise
+    pub k_is: Vec<F>,
+
+    /// For each wire of global common data, true if used by instance
+    pub used_wires: Vec<bool>,
+
+    /// For each partial product term of common data, true if used by instance
+    pub used_partial_product: Vec<bool>,
+}
+
+/// Target version of `PaddedVerifierData
+#[derive(Debug, Clone)]
+pub struct PaddedVerifierDataTarget {
+    /// The verifier data of some circuit
+    pub instance_verifier_data: VerifierCircuitTarget,
+
+    /// For each gate of some global gate list, a `PaddedSelectorsInfoTarget` encoding its representation
+    /// within the selector groups of `instance_verifier_data`.
+    pub selector_info: Vec<PaddedSelectorsInfoTarget>,
+
+    /// For each wire of global common data, k_i coset shift value if used in instance and 0 otherwise
+    pub k_is: Vec<Target>,
+
+    /// For each wire of global common data, true if used by instance
+    pub used_wires: Vec<BoolTarget>,
+
+    /// For each partial product term of common data, true if used by instance
+    pub used_partial_product: Vec<BoolTarget>,
+}
+
+/// Pads `instance_verifier_data` relative to `global_common_data`. Expresses the gate selector
+/// groups in terms of the global gate set and pads the `k_is` to have same length as global number
+/// of routed wires.
 pub fn pad_verifier_data<F, C, const D: usize>(
     global_common_data: &CommonCircuitData<F, D>,
     instance_verifier_data: &VerifierCircuitData<F, C, D>,
@@ -262,11 +300,110 @@ where
         .iter()
         .map(|gate| selector_padding(global_common_data, &instance_verifier_data.common, gate))
         .collect();
+    let mut used_wires = Vec::with_capacity(global_common_data.config.num_routed_wires);
+    let k_is = (0..global_common_data.config.num_routed_wires)
+        .map(|i| {
+            if i < instance_verifier_data.common.config.num_routed_wires {
+                // TODO: < or <=?
+                used_wires.push(true);
+                instance_verifier_data.common.k_is[i]
+            } else {
+                used_wires.push(false);
+                F::ONE
+            }
+        })
+        .collect();
 
+    let used_partial_product = (0..global_common_data.num_partial_products)
+        .map(|i| i < instance_verifier_data.common.num_partial_products)
+        .collect();
     PaddedVerifierData {
         instance_verifier_data: instance_verifier_data.clone(),
         selector_info,
+        k_is,
+        used_wires,
+        used_partial_product,
     }
+}
+
+/// Pads proof of an instance circuit to size appropriate for `global_common_data`.
+pub fn pad_proof<F, C, const D: usize>(
+    global_common_data: &CommonCircuitData<F, D>,
+    proof_with_pis: ProofWithPublicInputs<F, C, D>,
+) -> ProofWithPublicInputs<F, C, D>
+where
+    F: RichField + Extendable<D>,
+    C: GenericConfig<D, F = F>,
+{
+    // What all needs to be padded?
+    // - Extra wire openings
+    // - Extra partial product openings (if config equal these will be too)
+    // - Num public inputs
+    // - FRI Proof:
+    //      - number of coefficients of final_poly. Coefficients are ordered [a_0, a_1, ... ] so you can append 0's to end
+    let mut padded_proof = proof_with_pis.clone();
+    println!(
+        "Global common data uses {:?} routed wires",
+        global_common_data.config.num_routed_wires
+    );
+    println!(
+        "Global common data uses {:?} total wires",
+        global_common_data.config.num_wires
+    );
+
+    println!(
+        "Instance has {:?} wire openings",
+        proof_with_pis.proof.openings.wires.len()
+    );
+    println!(
+        "Global common data has {:?} challenge rounds",
+        global_common_data.config.num_challenges
+    );
+    println!(
+        "Instance uses {:?} routed wires",
+        proof_with_pis.proof.openings.wires.len() / global_common_data.config.num_challenges
+    );
+
+    let padding_wires =
+        global_common_data.config.num_wires - proof_with_pis.proof.openings.wires.len();
+    println!("Adding {padding_wires} additional wire openings");
+    padded_proof
+        .proof
+        .openings
+        .wires
+        .extend((0..padding_wires).map(|_| F::Extension::ZERO));
+
+    println!(
+        "Global common data uses {:?} public inputs",
+        global_common_data.num_public_inputs
+    );
+    println!(
+        "Proof has {:?} public inputs",
+        proof_with_pis.public_inputs.len()
+    );
+    let padding_pub_ins = global_common_data.num_public_inputs - proof_with_pis.public_inputs.len();
+    padded_proof
+        .public_inputs
+        .extend((0..padding_pub_ins).map(|_| F::ZERO));
+
+    println!(
+        "Global common data has FRI final poly length {:?}",
+        global_common_data.fri_params.final_poly_len()
+    );
+    println!(
+        "Proof has final FRI poly of length {:?}",
+        proof_with_pis.proof.opening_proof.final_poly.len()
+    );
+    // let padding_final_poly_coeffs = global_common_data.fri_params.final_poly_len()
+    //     - proof_with_pis.proof.opening_proof.final_poly.len();
+    // padded_proof
+    //     .proof
+    //     .opening_proof
+    //     .final_poly
+    //     .coeffs
+    //     .extend((0..padding_final_poly_coeffs).map(|_| F::Extension::ZERO));
+
+    padded_proof
 }
 
 pub fn padded_evaluate_gate_constraints_circuit<
@@ -459,6 +596,7 @@ pub mod circuits {
         const D: usize,
     >(
         config: &CircuitConfig,
+        degree_bits: usize,
     ) -> Result<ProofTuple<F, C, D>> {
         use crate::hash::hashing::SPONGE_WIDTH;
 
@@ -516,6 +654,15 @@ pub mod circuits {
                 permutation_inputs[i],
             );
         }
+
+        // Bump up degree with NoOps
+        let min_gates = (1 << (degree_bits - 1)) + 1;
+        for _ in builder.num_gates()..min_gates {
+            builder.add_gate(NoopGate, vec![]);
+        }
+
+        // Need some public inputs
+        builder.register_public_inputs(&[mult_0, mult_1, addend, result]);
 
         // Finalize
         let data = builder.build::<C>();
@@ -602,7 +749,8 @@ pub mod circuits {
         F: RichField + Extendable<D>,
         C: GenericConfig<D, F = F>,
     {
-        let global_common_data = most_complex_circuit::<F, C, D>(&config)
+        let degree_bits = 10;
+        let global_common_data = most_complex_circuit::<F, C, D>(&config, degree_bits)
             .expect("factorial")
             .common_data;
 
@@ -616,6 +764,8 @@ pub mod circuits {
         let padded_verifier_data_target = builder.add_virtual_padded_verifier_data(
             instance_common_data.config.fri_config.cap_height,
             global_common_data.gates.len(),
+            global_common_data.config.num_routed_wires,
+            global_common_data.num_partial_products,
         );
         let vars = EvaluationTargets {
             local_constants: &proof_with_pis.proof.openings.constants,
@@ -628,6 +778,10 @@ pub mod circuits {
             &padded_verifier_data_target,
             instance_common_data.selectors_info.num_selectors(),
             vars,
+        );
+        println!(
+            "Builder has {:?} constraints prior to build()",
+            builder.num_gates()
         );
         builder.build()
     }
@@ -654,6 +808,10 @@ pub mod circuits {
         };
         let _padded_gate_constraint_evaluations =
             evaluate_gate_constraints_circuit::<F, C, D>(&mut builder, instance_common_data, vars);
+        println!(
+            "Builder has {:?} constraints prior to build()",
+            builder.num_gates()
+        );
         builder.build()
     }
 }
@@ -661,15 +819,157 @@ pub mod circuits {
 #[cfg(test)]
 mod tests {
     use circuits::{
-        dummy_proof,
-        factorial_proof,
-        most_complex_circuit, padded_eval_gate_constraints_circuit,
-                              unpadded_eval_gate_constraints_circuit,
+        dummy_proof, factorial_proof, most_complex_circuit, padded_eval_gate_constraints_circuit,
+        unpadded_eval_gate_constraints_circuit,
     };
 
     use super::*;
-    use crate::plonk::vanishing_poly::evaluate_gate_constraints_circuit;
+    use crate::plonk::vanishing_poly::{
+        eval_vanishing_poly_circuit, evaluate_gate_constraints_circuit,
+    };
     use crate::plonk::verifier::verify;
+
+    // cargo test --package plonky2 --lib --all-features -- recursion::padding_experiments::tests::eval_vanishing_polynomial_padding_test --exact
+    /// Test that checks correctness of `padded_evaluate_gate_constraints`
+    #[test]
+    fn eval_vanishing_polynomial_padding_test() {
+        let config = CircuitConfig::standard_recursion_config();
+        // let config = CircuitConfig::wide_ecc_config();
+        let global_circuit_degree_bits = 10;
+        let instance_circuit_size = 5;
+        let global_common_data =
+            most_complex_circuit::<GoldilocksField, PoseidonGoldilocksConfig, 2>(
+                &config,
+                global_circuit_degree_bits,
+            )
+            .expect("global")
+            .common_data;
+        let config = CircuitConfig::standard_recursion_config();
+        let instance_tuple = factorial_proof::<GoldilocksField, PoseidonGoldilocksConfig, 2>(
+            &config,
+            instance_circuit_size,
+        )
+        .expect("instance");
+
+        let mut builder = CircuitBuilder::<GoldilocksField, 2>::new(config);
+        let mut pw = PartialWitness::new();
+
+        let proof_with_pis =
+            builder.add_virtual_proof_with_pis::<PoseidonGoldilocksConfig>(&instance_tuple.common_data); // change to global common data when pad_proof is working
+        pw.set_proof_with_pis_target(
+            &proof_with_pis,
+            &instance_tuple.proof_with_pis,
+            // &pad_proof(&global_common_data, instance_tuple.proof_with_pis.clone()),
+        );
+        let public_inputs_hash_target = builder
+            .hash_n_to_hash_no_pad::<<PoseidonGoldilocksConfig as GenericConfig<2>>::Hasher>(
+            proof_with_pis.public_inputs.clone(),
+        );
+
+        let padded_verifier_data_target = builder.add_virtual_padded_verifier_data(
+            instance_tuple.common_data.config.fri_config.cap_height,
+            global_common_data.gates.len(),
+            global_common_data.config.num_routed_wires,
+            global_common_data.num_partial_products,
+        );
+        let padded_verifier_data = pad_verifier_data(
+            &global_common_data,
+            &VerifierCircuitData {
+                verifier_only: instance_tuple.clone().verifier_only_data,
+                common: instance_tuple.clone().common_data,
+            },
+        );
+        // println!("Computed padded verifier data as {padded_verifier_data:#?}",);
+        // // Break it:
+        // let _ = padded_verifier_data
+        //     .selector_info
+        //     .iter_mut()
+        //     .map(|selector_info| {
+        //         // selector_info.selector_bits[0] = !selector_info.selector_bits[0];
+        //         // selector_info.padding_value = true;
+        //     })
+        //     .collect::<Vec<_>>();
+        pw.set_padded_verifier_data_target(&padded_verifier_data_target, &padded_verifier_data);
+
+        let public_inputs_hash = builder
+            .hash_n_to_hash_no_pad::<<PoseidonGoldilocksConfig as GenericConfig<2>>::InnerHasher>(
+                proof_with_pis.public_inputs.clone(),
+            );
+        let challenges = proof_with_pis.get_challenges::<_, PoseidonGoldilocksConfig>(
+            &mut builder,
+            public_inputs_hash,
+            padded_verifier_data_target
+                .instance_verifier_data
+                .circuit_digest,
+            &instance_tuple.common_data,
+        );
+        let proof = proof_with_pis.proof;
+        let local_zs = &proof.openings.plonk_zs;
+        let next_zs = &proof.openings.plonk_zs_next;
+        let s_sigmas = &proof.openings.plonk_sigmas;
+        let partial_products = &proof.openings.partial_products;
+
+        let zeta_pow_deg = builder.exp_power_of_2_extension(
+            challenges.plonk_zeta,
+            instance_tuple.common_data.degree_bits(),
+        );
+
+        let vars = EvaluationTargets {
+            local_constants: &proof.openings.constants,
+            local_wires: &proof.openings.wires,
+            public_inputs_hash: &public_inputs_hash_target,
+        };
+
+        let padded_vanishing_poly_evaluations =
+            padded_eval_vanishing_poly_circuit::<_, PoseidonGoldilocksConfig, 2>(
+                &mut builder,
+                &global_common_data,
+                &padded_verifier_data_target,
+                instance_tuple.common_data.selectors_info.num_selectors(),
+                instance_tuple.common_data.degree(),
+                challenges.plonk_zeta,
+                zeta_pow_deg,
+                vars,
+                local_zs,
+                next_zs,
+                partial_products,
+                s_sigmas,
+                &challenges.plonk_betas,
+                &challenges.plonk_gammas,
+                &challenges.plonk_alphas,
+            );
+        let original_vanishing_poly_evaluations =
+            eval_vanishing_poly_circuit::<_, PoseidonGoldilocksConfig, 2>(
+                &mut builder,
+                &instance_tuple.common_data,
+                challenges.plonk_zeta,
+                zeta_pow_deg,
+                vars,
+                local_zs,
+                next_zs,
+                partial_products,
+                s_sigmas,
+                &challenges.plonk_betas,
+                &challenges.plonk_gammas,
+                &challenges.plonk_alphas,
+            );
+        // Assert equality of the two methods.
+        let _ = padded_vanishing_poly_evaluations
+            .iter()
+            .zip(original_vanishing_poly_evaluations.iter())
+            .map(|(&padded, &original)| {
+                builder.connect_extension(padded, original);
+            })
+            .collect::<Vec<_>>();
+
+        // The builder now describes a circuit that checks the gate constraints in two ways and asserts their equality.
+        let data = builder.build::<PoseidonGoldilocksConfig>();
+        let mut timing = TimingTree::new("prove", Level::Debug);
+        let proof = prove(&data.prover_only, &data.common, pw, &mut timing)
+            .expect("Proof generation failed");
+        timing.print();
+        data.verify(proof).expect("Proof verification failed");
+    }
 
     // sanity check
     #[test]
@@ -699,10 +999,14 @@ mod tests {
     fn evaluate_gate_constraints_padding_test() {
         let config = CircuitConfig::standard_recursion_config();
         let instance_circuit_size = 5;
+        let global_circuit_degree_bits = 10;
         let global_common_data =
-            most_complex_circuit::<GoldilocksField, PoseidonGoldilocksConfig, 2>(&config)
-                .expect("global")
-                .common_data;
+            most_complex_circuit::<GoldilocksField, PoseidonGoldilocksConfig, 2>(
+                &config,
+                global_circuit_degree_bits,
+            )
+            .expect("global")
+            .common_data;
         let instance_tuple = factorial_proof::<GoldilocksField, PoseidonGoldilocksConfig, 2>(
             &config,
             instance_circuit_size,
@@ -723,6 +1027,8 @@ mod tests {
         let padded_verifier_data_target = builder.add_virtual_padded_verifier_data(
             instance_tuple.common_data.config.fri_config.cap_height,
             global_common_data.gates.len(),
+            global_common_data.config.num_routed_wires,
+            global_common_data.num_partial_products,
         );
         let padded_verifier_data = pad_verifier_data(
             &global_common_data,
@@ -778,8 +1084,7 @@ mod tests {
         let proof = prove(&data.prover_only, &data.common, pw, &mut timing)
             .expect("Proof generation failed");
         timing.print();
-        data.verify(proof)
-            .expect("Proof verification failed");
+        data.verify(proof).expect("Proof verification failed");
     }
 
     // cargo test --package plonky2 --lib --all-features -- recursion::padding_experiments::tests::compare_padded_eval_gate_constraint_size --exact --nocapture
@@ -824,9 +1129,10 @@ mod tests {
     #[test]
     fn most_complex_circuit_info() {
         let config = CircuitConfig::standard_recursion_config();
-        let circuit_name = "Most Complex Circuit".to_string();
+        let degree_bits = 10;
+        let circuit_name = format!("Most Complex Circuit, degree_bits: {degree_bits}");
         let proof_tuple: GoldilocksProofTuple =
-            most_complex_circuit(&config).expect("Unable to form circuit");
+            most_complex_circuit(&config, degree_bits).expect("Unable to form circuit");
 
         display_circuit_proof_info(&proof_tuple, circuit_name);
     }
@@ -960,6 +1266,10 @@ pub fn display_circuit_proof_info<F, C, const D: usize>(
             .opening_proof
             .final_poly
             .len()
+    );
+    println!(
+        "FRI Reduction Strategy: {:?}",
+        proof_tuple.common_data.fri_params.reduction_arity_bits
     );
 }
 

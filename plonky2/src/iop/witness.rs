@@ -180,6 +180,30 @@ pub trait WitnessWrite<F: Field> {
                 self.set_padded_selectors_info_target(sit, si);
             })
             .collect::<Vec<_>>();
+        let _ = vdt
+            .k_is
+            .iter()
+            .zip(vd.k_is.iter())
+            .map(|(&kt, &k)| {
+                self.set_target(kt, k);
+            })
+            .collect::<Vec<_>>();
+        let _ = vdt
+            .used_wires
+            .iter()
+            .zip(vd.used_wires.iter())
+            .map(|(&bt, &b)| {
+                self.set_bool_target(bt, b);
+            })
+            .collect::<Vec<_>>();
+        let _ = vdt
+            .used_partial_product
+            .iter()
+            .zip(vd.used_partial_product.iter())
+            .map(|(&bt, &b)| {
+                self.set_bool_target(bt, b);
+            })
+            .collect::<Vec<_>>();
     }
 
     fn set_verifier_data_target<C: GenericConfig<D, F = F>, const D: usize>(
