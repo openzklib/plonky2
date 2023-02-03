@@ -386,19 +386,17 @@ where
                 next_opcode_is_str_push,
                 is_not_list_and_content_len_is_nonzero,
             );
+        */
 
         // binary check content_len_is_zero
-        compiler.assert_boolean(&curr.content_len_is_zero);
         // check content_len_is_zero via content_len_inv
-        let prod = curr.content_len * curr.content_len_inv;
         // if content_len_is_zero is set, then content_len and content_len_inv must both be zero
-        compiler
-            .when(curr.content_len_is_zero)
-            .assert_zero(curr.content_len)
-            .assert_zero(curr.content_len_inv)
-            .otherwise()
-            .assert_eq(&prod, &one);
-        */
+        compiler.assert_boolean(&curr.content_len_is_zero);
+        compiler.assert_valid_zero_check(
+            curr.content_len_is_zero,
+            &curr.content_len,
+            &curr.content_len_inv,
+        );
 
         // List ==========================================================================
 
@@ -976,62 +974,67 @@ where
         compiler.assert_zero_first_row(&curr.count_u8);
         compiler.assert_zero_first_row(&curr.count_56);
 
-        /*
         // if count_127_is_127, set it to 0, otherwise increment it
-        compiler.assert_zero_product_transition(next.count_127, curr.count_127_is_127);
-        compiler.assert_zero_product_transition(
-            next.count_127 - curr.count_127 - one,
-            one - curr.count_127_is_127,
-        );
+        compiler
+            .when(curr.count_127_is_127)
+            .assert_zero_transition(&next.count_127)
+            .otherwise()
+            .assert_increments_by(&curr.count_127, &next.count_127, &one);
 
         // if count_u8_is_255, set it to 0, otherwise increment it
-        compiler.assert_zero_product_transition(next.count_u8, curr.count_u8_is_255);
-        compiler.assert_zero_product_transition(
-            next.count_u8 - curr.count_u8 - one,
-            one - curr.count_u8_is_255,
-        );
+        compiler
+            .when(curr.count_u8_is_255)
+            .assert_zero_transition(&next.count_u8)
+            .otherwise()
+            .assert_increments_by(&curr.count_u8, &next.count_u8, &one);
 
         // if count_56_is_55, set it to 0, otherwise increment it
-        compiler.assert_zero_product_transition(next.count_56, curr.count_56_is_55);
-        compiler.assert_zero_product_transition(
-            next.count_56 - curr.count_56 - one,
-            one - curr.count_56_is_55,
-        );
-
-        // check count_127_is_127 via inv
-        let count_127_minus_127 = curr.count_127 - FE::from_canonical_u64(127);
-        let prod = count_127_minus_127 * curr.count_127_minus_127_inv;
-        // binary check count_127_is_127
-        compiler.constraint((one - curr.count_127_is_127) * curr.count_127_is_127);
-
-        // if count_127_is_127 is set, then both count_127_minus_127 and its inv must be zero
-        compiler.assert_zero_product(count_127_minus_127, curr.count_127_is_127);
         compiler
-            .assert_zero_product(curr.count_127_minus_127_inv, curr.count_127_is_127);
-        // otherwise, prod must be one
-        compiler.assert_zero_product(one - prod, one - curr.count_127_is_127);
+            .when(curr.count_56_is_55)
+            .assert_zero_transition(&next.count_56)
+            .otherwise()
+            .assert_increments_by(&curr.count_56, &next.count_56, &one);
 
-        // check count_u8_is_255 via inv
-        let count_u8_minus_255 = curr.count_u8 - FE::from_canonical_u8(255);
-        let prod = count_u8_minus_255 * curr.count_u8_minus_255_inv;
+        /* TODO:
+        // binary check count_127_is_127
+        // check count_127_is_127 via inv
+        // if count_127_is_127 is set, then both count_127_minus_127 and its inv must be zero
+        // otherwise, prod must be one
+        let count_127_minus_127 = curr.count_127 - FE::from_canonical_u64(127);
+        compiler.assert_boolean(&curr.count_127_is_127);
+        compiler.assert_valid_zero_check(
+            curr.count_127_is_127,
+            count_127_minus_127,
+            &curr.count_127_minus_127_inv,
+        );
+        */
+
+        /* TODO:
         // binary count_u8_is_255
-        compiler.constraint((one - curr.count_u8_is_255) * curr.count_u8_is_255);
+        // check count_u8_is_255 via inv
         // if count_u8_is_255 is set, then both count_u8_minus_255 and its inv must be zero
-        compiler.assert_zero_product(count_u8_minus_255, curr.count_u8_is_255);
-        compiler.assert_zero_product(curr.count_u8_minus_255_inv, curr.count_u8_is_255);
         // otherwise, prod must be one
-        compiler.assert_zero_product(one - prod, one - curr.count_u8_is_255);
+        let count_u8_minus_255 = curr.count_u8 - FE::from_canonical_u8(255);
+        compiler.assert_boolean(&curr.count_u8_is_255);
+        compiler.assert_valid_zero_check(
+            curr.count_u8_is_255,
+            &count_u8_minus_255,
+            &curr.count_u8_minus_255_inv,
+        );
+        */
 
-        // check count_56_is_55 via inv
-        let count_56_minus_55 = curr.count_56 - FE::from_canonical_u8(55);
-        let prod = count_56_minus_55 * curr.count_56_minus_55_inv;
+        /* TODO:
         // binary check count_56_is_55
-        compiler.constraint((one - curr.count_56_is_55) * curr.count_56_is_55);
+        // check count_56_is_55 via inv
         // if count_56_is_55 is set, then both count_56_minus_55 and its inv must be zero
-        compiler.assert_zero_product(count_56_minus_55, curr.count_56_is_55);
-        compiler.assert_zero_product(curr.count_56_minus_55_inv, curr.count_56_is_55);
         // otherwise, prod must be one
-        compiler.assert_zero_product(one - prod, one - curr.count_56_is_55);
+        let count_56_minus_55 = curr.count_56 - FE::from_canonical_u8(55);
+        compiler.assert_boolean(&curr.count_56_is_55);
+        compiler.assert_valid_zero_check(
+            curr.count_56_is_55,
+            &count_56_minus_55,
+            &curr.count_56_minus_55_inv,
+        );
         */
 
         // ensure things that shouldn't change stay the same
