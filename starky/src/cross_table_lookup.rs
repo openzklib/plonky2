@@ -463,7 +463,7 @@ pub(crate) fn eval_cross_table_lookup_checks<F, FE, P, C, S, const D: usize, con
 
         let sel = filter_col.map_or(P::ONES, |col| vars.local_values[col]);
         // check filter is binary
-        consumer.constraint(sel * (P::ONES - sel), &mut ());
+        consumer.constraint(&(sel * (P::ONES - sel)), &mut ());
 
         let next_sel = filter_col.map_or(P::ONES, |col| vars.next_values[col]);
 
@@ -477,8 +477,8 @@ pub(crate) fn eval_cross_table_lookup_checks<F, FE, P, C, S, const D: usize, con
             let last_z = ctl_vars.last_zs[instance * num_challenges + i];
 
             // check first and last zs
-            consumer.constraint_filtered(FirstRow, local_z - FE::from_basefield(first_z), &mut ());
-            consumer.constraint_filtered(LastRow, local_z - FE::from_basefield(last_z),  &mut ());
+            consumer.constraint_filtered(FirstRow, &(local_z - FE::from_basefield(first_z)), &mut ());
+            consumer.constraint_filtered(LastRow, &(local_z - FE::from_basefield(last_z)),  &mut ());
 
             // check grand product
             let reduced_eval = eval_reduced(
@@ -487,8 +487,8 @@ pub(crate) fn eval_cross_table_lookup_checks<F, FE, P, C, S, const D: usize, con
                 linear_comb_challenge.gamma,
             );
             let eval = reduced_eval + FE::from_basefield(challenge.gamma) - P::ONES;
-            consumer.constraint_filtered(Transition, next_z - (local_z * (next_sel * eval + P::ONES)), &mut ());
-            consumer.constraint_filtered(LastRow, next_z - FE::from_basefield(first_z), &mut ());
+            consumer.constraint_filtered(Transition, &(next_z - (local_z * (next_sel * eval + P::ONES))), &mut ());
+            consumer.constraint_filtered(LastRow, &(next_z - FE::from_basefield(first_z)), &mut ());
 
             // check grand product start
             let reduced_eval = eval_reduced(
@@ -497,7 +497,7 @@ pub(crate) fn eval_cross_table_lookup_checks<F, FE, P, C, S, const D: usize, con
                 linear_comb_challenge.gamma,
             );
             let eval = reduced_eval + FE::from_basefield(challenge.gamma) - P::ONES;
-            consumer.constraint_filtered(FirstRow, (sel * eval + P::ONES) - FE::from_basefield(first_z), &mut ());
+            consumer.constraint_filtered(FirstRow, &((sel * eval + P::ONES) - FE::from_basefield(first_z)), &mut ());
         }
     }
 }
