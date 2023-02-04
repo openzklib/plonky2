@@ -248,7 +248,7 @@ impl StarkMetadata {
             batches.push(zeta_first_batch);
             batches.push(zeta_last_batch);
         }
-
+        
         FriInstanceInfo { oracles, batches }
     }
 

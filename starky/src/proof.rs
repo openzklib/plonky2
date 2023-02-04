@@ -201,38 +201,34 @@ impl<F: RichField + Extendable<D>, const D: usize> StarkOpeningSet<F, D> {
                 .next_values
                 .iter()
                 .chain(self.permutation_zs_next.iter().flatten())
-                .chain(self.ctl_zs.iter().flatten())
+                .chain(self.ctl_zs_next.iter().flatten())
                 .copied()
                 .collect(),
         };
 
-        let ctl_first_last_batches = match (self.ctl_zs_first.as_ref(), self.ctl_zs_last.as_ref()) {
-            (Some(first), Some(last)) => {
-                let first_batch = FriOpeningBatch {
-                    values: first
-                        .iter()
-                        .copied()
-                        .map(F::Extension::from_basefield)
-                        .collect(),
-                };
-
-                let last_batch = FriOpeningBatch {
-                    values: last
-                        .iter()
-                        .copied()
-                        .map(F::Extension::from_basefield)
-                        .collect(),
-                };
-
-                Some((first_batch, last_batch))
-            }
-            (None, None) => None,
-            _ => panic!("ctl_zs_first.is_some() != ctl_zs_last.is_some()"),
-        };
-
         let mut batches = vec![zeta_batch, zeta_next_batch];
-        if let Some((first_batch, last_batch)) = ctl_first_last_batches {
+
+        assert!(self.ctl_zs_first.is_some() == self.ctl_zs_last.is_some());
+
+        if let Some(zs_first) = self.ctl_zs_first.as_ref() {
+            let first_batch = FriOpeningBatch {
+                values: zs_first
+                    .iter()
+                    .copied()
+                    .map(F::Extension::from_basefield)
+                    .collect(),
+            };
             batches.push(first_batch);
+        }
+
+        if let Some(zs_last) = self.ctl_zs_last.as_ref() {
+            let last_batch = FriOpeningBatch {
+                values: zs_last
+                    .iter()
+                    .copied()
+                    .map(F::Extension::from_basefield)
+                    .collect(),
+            };
             batches.push(last_batch);
         }
 

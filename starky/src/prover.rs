@@ -205,7 +205,6 @@ where
         challenger.observe_cap(cap);
     }
 
-
     let ctl_zs_commitment_challenges_cols = ctl_data.map(|ctl_data| {
         let zs = ctl_data.zs();
         let commitment = timed!(
