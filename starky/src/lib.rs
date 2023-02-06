@@ -22,6 +22,7 @@ pub mod starks;
 pub mod util;
 pub mod vanishing_poly;
 pub mod verifier;
+pub mod cross_table_lookup;
 
 #[cfg(test)]
 pub mod fibonacci_stark;

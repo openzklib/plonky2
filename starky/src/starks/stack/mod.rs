@@ -68,10 +68,10 @@ mod tests {
 
     use super::*;
     use crate::config::StarkConfig;
-    use crate::prover::prove;
+    use crate::prover::prove_no_ctl;
     use crate::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
     use crate::starks::stack::generation::StackGenerator;
-    use crate::verifier::verify_stark_proof;
+    use crate::verifier::verify_stark_proof_no_ctl;
 
     #[test]
     fn test_stark_degree() -> Result<()> {
@@ -122,8 +122,8 @@ mod tests {
         let stark = S::default();
         let trace = generator.into_polynomial_values();
         let mut timing = TimingTree::default();
-        let proof = prove::<F, C, S, D>(stark, &config, trace, vec![], &mut timing)?;
-        verify_stark_proof(stark, proof, &config)?;
+        let proof = prove_no_ctl::<F, C, S, D>(&stark, &config, &trace, vec![], &mut timing)?;
+        verify_stark_proof_no_ctl(&stark, proof, &config)?;
 
         Ok(())
     }

@@ -1,7 +1,10 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use plonky2::field::extension::{Extendable, FieldExtension};
+use plonky2::field::{
+    extension::{Extendable, FieldExtension},
+    types::Field,
+};
 use plonky2::fri::structure::{
     FriBatchInfo, FriBatchInfoTarget, FriInstanceInfo, FriInstanceInfoTarget, FriOracleInfo,
     FriPolynomialInfo,
@@ -170,6 +173,8 @@ impl StarkMetadata {
         zeta: F::Extension,
         g: F,
         config: &StarkConfig,
+        num_ctl_zs: usize,
+        degree_bits: usize,
     ) -> FriInstanceInfo<F, D>
     where
         F: RichField + Extendable<D>,
@@ -180,6 +185,7 @@ impl StarkMetadata {
             num_polys: self.columns,
             blinding: false,
         });
+
         let permutation_zs_info = if self.uses_permutation_args() {
             let num_z_polys = self.num_permutation_batches(config);
             let polys = FriPolynomialInfo::from_range(oracles.len(), 0..num_z_polys);
@@ -191,26 +197,58 @@ impl StarkMetadata {
         } else {
             vec![]
         };
+
         let num_quotient_polys = self.quotient_degree_factor() * config.num_challenges;
         let quotient_info = FriPolynomialInfo::from_range(oracles.len(), 0..num_quotient_polys);
         oracles.push(FriOracleInfo {
             num_polys: num_quotient_polys,
             blinding: false,
         });
+
+        let ctl_zs_oracle_info = if num_ctl_zs > 0 {
+            let polys = FriPolynomialInfo::from_range(oracles.len(), 0..num_ctl_zs);
+            oracles.push(FriOracleInfo {
+                num_polys: num_ctl_zs,
+                blinding: false,
+            });
+           polys 
+        } else {
+            vec![]
+        };
+
         let zeta_batch = FriBatchInfo {
             point: zeta,
             polynomials: [
                 trace_info.clone(),
                 permutation_zs_info.clone(),
+                ctl_zs_oracle_info.clone(),
                 quotient_info,
             ]
             .concat(),
         };
         let zeta_next_batch = FriBatchInfo {
             point: zeta.scalar_mul(g),
-            polynomials: [trace_info, permutation_zs_info].concat(),
+            polynomials: [trace_info, permutation_zs_info, ctl_zs_oracle_info.clone()].concat(),
         };
-        let batches = vec![zeta_batch, zeta_next_batch];
+
+
+        let mut batches = vec![zeta_batch, zeta_next_batch];
+
+        if ctl_zs_oracle_info.len() > 0 {
+            let zeta_first_batch = FriBatchInfo {
+                point: F::Extension::ONE,
+                polynomials: ctl_zs_oracle_info.clone()
+            };
+
+            let zeta_last_batch = FriBatchInfo {
+                point: F::Extension::primitive_root_of_unity(degree_bits).inverse(),
+                polynomials: ctl_zs_oracle_info
+            };
+
+            batches.push(zeta_first_batch);
+            batches.push(zeta_last_batch);
+        }
+        
         FriInstanceInfo { oracles, batches }
     }
 
