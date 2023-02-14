@@ -163,17 +163,16 @@ impl StarkMetadata {
         )
     }
 
-    /// Computes the FRI instance used to prove a STARK with this metadata.
+    ///
     #[inline]
-    pub fn fri_instance<F, const D: usize>(
+    fn fri_instance_info(
         &self,
-        zeta: F::Extension,
-        g: F,
         config: &StarkConfig,
-    ) -> FriInstanceInfo<F, D>
-    where
-        F: RichField + Extendable<D>,
-    {
+    ) -> (
+        Vec<FriPolynomialInfo>,
+        Vec<FriPolynomialInfo>,
+        Vec<FriOracleInfo>,
+    ) {
         let mut oracles = vec![];
         let trace_info = FriPolynomialInfo::from_range(oracles.len(), 0..self.columns);
         oracles.push(FriOracleInfo {
@@ -197,21 +196,41 @@ impl StarkMetadata {
             num_polys: num_quotient_polys,
             blinding: false,
         });
+        let zeta_batch_polynomials = [
+            trace_info.clone(),
+            permutation_zs_info.clone(),
+            quotient_info,
+        ]
+        .concat();
+        let zeta_next_batch_polynomials = [trace_info, permutation_zs_info].concat();
+        (zeta_batch_polynomials, zeta_next_batch_polynomials, oracles)
+    }
+
+    /// Computes the FRI instance used to prove a STARK with this metadata.
+    #[inline]
+    pub fn fri_instance<F, const D: usize>(
+        &self,
+        zeta: F::Extension,
+        g: F,
+        config: &StarkConfig,
+    ) -> FriInstanceInfo<F, D>
+    where
+        F: RichField + Extendable<D>,
+    {
+        let (zeta_batch_polynomials, zeta_next_batch_polynomials, oracles) =
+            self.fri_instance_info(config);
         let zeta_batch = FriBatchInfo {
             point: zeta,
-            polynomials: [
-                trace_info.clone(),
-                permutation_zs_info.clone(),
-                quotient_info,
-            ]
-            .concat(),
+            polynomials: zeta_batch_polynomials,
         };
         let zeta_next_batch = FriBatchInfo {
             point: zeta.scalar_mul(g),
-            polynomials: [trace_info, permutation_zs_info].concat(),
+            polynomials: zeta_next_batch_polynomials,
         };
-        let batches = vec![zeta_batch, zeta_next_batch];
-        FriInstanceInfo { oracles, batches }
+        FriInstanceInfo {
+            oracles,
+            batches: vec![zeta_batch, zeta_next_batch],
+        }
     }
 
     /// Computes the FRI instance used to prove a STARK with this metadata.
@@ -226,44 +245,19 @@ impl StarkMetadata {
     where
         F: RichField + Extendable<D>,
     {
-        let mut oracles = vec![];
-        let trace_info = FriPolynomialInfo::from_range(oracles.len(), 0..self.columns);
-        oracles.push(FriOracleInfo {
-            num_polys: self.columns,
-            blinding: false,
-        });
-        let permutation_zs_info = if self.uses_permutation_args() {
-            let num_z_polys = self.num_permutation_batches(config);
-            let polys = FriPolynomialInfo::from_range(oracles.len(), 0..num_z_polys);
-            oracles.push(FriOracleInfo {
-                num_polys: num_z_polys,
-                blinding: false,
-            });
-            polys
-        } else {
-            vec![]
-        };
-        let num_quotient_polys = self.quotient_degree_factor() * config.num_challenges;
-        let quotient_info = FriPolynomialInfo::from_range(oracles.len(), 0..num_quotient_polys);
-        oracles.push(FriOracleInfo {
-            num_polys: num_quotient_polys,
-            blinding: false,
-        });
+        let (zeta_batch_polynomials, zeta_next_batch_polynomials, oracles) =
+            self.fri_instance_info(config);
         let zeta_batch = FriBatchInfoTarget {
             point: zeta,
-            polynomials: [
-                trace_info.clone(),
-                permutation_zs_info.clone(),
-                quotient_info,
-            ]
-            .concat(),
+            polynomials: zeta_batch_polynomials,
         };
-        let zeta_next = builder.mul_const_extension(g, zeta);
         let zeta_next_batch = FriBatchInfoTarget {
-            point: zeta_next,
-            polynomials: [trace_info, permutation_zs_info].concat(),
+            point: builder.mul_const_extension(g, zeta),
+            polynomials: zeta_next_batch_polynomials,
         };
-        let batches = vec![zeta_batch, zeta_next_batch];
-        FriInstanceInfoTarget { oracles, batches }
+        FriInstanceInfoTarget {
+            oracles,
+            batches: vec![zeta_batch, zeta_next_batch],
+        }
     }
 }

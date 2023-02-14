@@ -42,7 +42,7 @@ pub struct FriBatchInfoTarget<const D: usize> {
     pub polynomials: Vec<FriPolynomialInfo>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct FriPolynomialInfo {
     /// Index into `FriInstanceInfo`'s `oracles` list.
     pub oracle_index: usize,
