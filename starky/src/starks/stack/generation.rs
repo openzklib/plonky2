@@ -70,7 +70,7 @@ where
         };
 
         row.rw_memory.timestamp = F::from_canonical_u64(self.timestamp);
-        row.rw_memory.addr = F::from_canonical_u64(self.stack.len() as u64);
+        row.rw_memory.addr = row.sp;
         row.rw_memory.value = value;
         row.rw_memory.is_write = F::ONE;
 
@@ -129,17 +129,15 @@ where
             row.rw_memory.timestamp_sorted = F::from_canonical_u64(timestamp);
             row.rw_memory.value_sorted = value;
             row.rw_memory.is_write_sorted = is_write;
-            (row.rw_memory.timestamp_sorted_diff, prev_timestamp) = match prev_timestamp {
-                None => (F::ONE, Some(row.rw_memory.timestamp_sorted)),
-                Some(prev) => {
-                    if prev_addr == row.rw_memory.addr_sorted {
-                        let diff = row.rw_memory.timestamp_sorted - prev;
-                        (diff, Some(row.rw_memory.timestamp_sorted))
-                    } else {
-                        (F::ONE, Some(row.rw_memory.timestamp_sorted))
-                    }
+
+            row.rw_memory.timestamp_sorted_diff = match prev_timestamp {
+                Some(prev) if prev_addr == row.rw_memory.addr_sorted => {
+                    row.rw_memory.timestamp_sorted - prev
                 }
+                _ => F::ONE,
             };
+
+            prev_timestamp = Some(row.rw_memory.timestamp_sorted);
             prev_addr = row.rw_memory.addr_sorted;
         }
     }

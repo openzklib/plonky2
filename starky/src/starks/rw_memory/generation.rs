@@ -59,52 +59,11 @@ where
         }
     }
 
-    pub fn gen_write(&mut self, addr: usize, value: F, channels: &[usize]) {
-        let mut row = RwMemoryGate {
-            timestamp: F::from_canonical_u64(self.timestamp),
-            addr: F::from_canonical_u64(addr as u64),
-            value,
-            is_write: F::ONE,
-            ..Default::default()
-        };
-        Self::gen_channel_filters(&mut row, channels);
-        self.write_to_mem(addr, value);
-        self.trace.push(row.into());
-        self.timestamp += 1;
-    }
-
-    fn write_to_mem(&mut self, addr: usize, val: F) {
-        if addr >= self.mem.len() {
-            self.mem.resize(addr + 1, None);
-        }
-        self.mem[addr] = Some(val);
-    }
-
     fn read_from_mem(&mut self, addr: usize) -> F {
         if addr >= self.mem.len() {
             panic!("attempted to read from uninitialized memory")
         }
         self.mem[addr].expect("attempted to read from uninitialized memory")
-    }
-
-    fn mem_is_contiguous(&self) -> bool {
-        if self.mem[0].is_none() {
-            return false;
-        }
-
-        let addrs_accessed = self
-            .mem
-            .iter()
-            .enumerate()
-            .filter_map(|(i, v)| v.as_ref().map(|_| i))
-            .sorted();
-        for (curr, next) in addrs_accessed.tuple_windows() {
-            if next != curr && next != curr + 1 {
-                return false;
-            }
-        }
-
-        true
     }
 
     pub fn gen_read(&mut self, addr: usize, channels: &[usize]) -> F {
@@ -116,11 +75,34 @@ where
         row.value = value;
         row.is_write = F::ZERO;
 
-        Self::gen_channel_filters(&mut row, channels);
-
-        self.trace.push(row.into());
         self.timestamp += 1;
+
+        Self::gen_channel_filters(&mut row, channels);
+        self.trace.push(row.into());
+
         value
+    }
+
+    fn write_to_mem(&mut self, addr: usize, val: F) {
+        if addr >= self.mem.len() {
+            self.mem.resize(addr + 1, None);
+        }
+        self.mem[addr] = Some(val);
+    }
+
+    pub fn gen_write(&mut self, addr: usize, value: F, channels: &[usize]) {
+        let mut row = RwMemoryGate {
+            timestamp: F::from_canonical_u64(self.timestamp),
+            addr: F::from_canonical_u64(addr as u64),
+            value,
+            is_write: F::ONE,
+            ..Default::default()
+        };
+        self.write_to_mem(addr, value);
+        self.timestamp += 1;
+
+        Self::gen_channel_filters(&mut row, channels);
+        self.trace.push(row.into());
     }
 
     fn gen_channel_filters(row: &mut RwMemoryGate<F, CHANNELS>, channels: &[usize]) {
@@ -177,6 +159,26 @@ where
         while self.trace.len() < target_len {
             self.gen_read(0, &[]);
         }
+    }
+
+    fn mem_is_contiguous(&self) -> bool {
+        if self.mem[0].is_none() {
+            return false;
+        }
+
+        let addrs_accessed = self
+            .mem
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| v.as_ref().map(|_| i))
+            .sorted();
+        for (curr, next) in addrs_accessed.tuple_windows() {
+            if next != curr && next != curr + 1 {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub fn into_polynomial_values_of_target_degree(

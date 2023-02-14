@@ -588,6 +588,12 @@ pub struct Bool(Register);
 impl Bool {
     ///
     #[inline]
+    pub fn register(self) -> Register {
+        self.0
+    }
+
+    ///
+    #[inline]
     pub fn curr(self) -> Target {
         self.0.curr
     }
@@ -676,6 +682,15 @@ macro_rules! define_opcode {
             pub bit_sum: Bool,
         }
 
+        impl core::ops::Index<usize> for $name {
+            type Output = Bool;
+
+            #[inline]
+            fn index(&self, index: usize) -> &Self::Output {
+                [&self.$head, $(&self.$tail),+][index]
+            }
+        }
+
         impl<COM> Variable<COM> for $name
         where
             COM: Add<Target> + Constraint<Target> + Mul<Target> + One<Target> + Sub<Target> + Zero<Target>,
@@ -756,7 +771,38 @@ impl Lookup {
 }
 
 ///
+#[derive(Clone, Debug)]
 pub struct FilterColumns(Vec<Bool>);
+
+///
+#[derive(Clone, Copy, Debug)]
+pub struct Timestamp(Register);
+
+impl Timestamp {
+    ///
+    #[inline]
+    pub fn register(self) -> Register {
+        self.0
+    }
+}
+
+impl<COM> Variable<COM> for Timestamp
+where
+    COM: Constraint<Target>
+        + ConstraintFiltered<Target, FirstRow>
+        + ConstraintFiltered<Target, Transition>
+        + One<Target>
+        + Sub<Target>,
+{
+    #[inline]
+    fn create(compiler: &mut COM) -> Self {
+        let one = compiler.one();
+        let timestamp = compiler.allocate::<Register>();
+        compiler.assert_eq_first_row(timestamp.curr, one);
+        compiler.assert_increments_by(timestamp.curr, timestamp.next, one);
+        Self(timestamp)
+    }
+}
 
 define_opcode!(pub RwMemoryOpcode { read, write });
 
@@ -784,7 +830,7 @@ pub struct RwMemory {
     pub timestamp_sorted: Register,
 
     /// Timestamp
-    pub timestamp: Register,
+    pub timestamp: Timestamp,
 
     /// Used to range check addresses and timestamp differenes
     pub timestamp_permuted: Register,
@@ -797,6 +843,31 @@ pub struct RwMemory {
 }
 
 impl RwMemory {
+    ///
+    #[inline]
+    pub fn permutations(&self) -> Vec<(Register, Register)> {
+        vec![
+            (self.addr, self.addr_sorted),
+            (self.value, self.value_sorted),
+            (
+                self.opcode.write.register(),
+                self.is_write_sorted.register(),
+            ),
+            (self.timestamp.register(), self.timestamp_sorted),
+        ]
+    }
+
+    ///
+    #[inline]
+    pub fn lookups(&self) -> Vec<Lookup> {
+        vec![Lookup {
+            input: self.timestamp_sorted_diff,
+            table: self.timestamp.register(),
+            permuted_input: self.timestamp_sorted_diff_permuted,
+            permuted_table: self.timestamp_permuted,
+        }]
+    }
+
     ///
     #[inline]
     fn assert<COM>(self, compiler: &mut COM) -> Self
@@ -861,11 +932,6 @@ impl RwMemory {
             .when(address_changed)
             .assert_eq_transition(self.timestamp_sorted_diff.next, one);
 
-        // Check that "unsorted" timestamps start at 1 and increment by 1 each curr_row.
-
-        compiler.assert_eq_first_row(self.timestamp.curr, one);
-        compiler.assert_increments_by(self.timestamp.curr, self.timestamp.next, one);
-
         // MEMORY TRACE ==================================================================
 
         // Check that the sorted memory trace is valid.
@@ -884,16 +950,44 @@ impl RwMemory {
 
         // LOOKUPS =======================================================================
 
-        Lookup {
-            input: self.timestamp_sorted_diff,
-            table: self.timestamp,
-            permuted_input: self.timestamp_sorted_diff_permuted,
-            permuted_table: self.timestamp_permuted,
+        for lookup in self.lookups() {
+            lookup.assert(compiler);
         }
-        .assert(compiler);
 
         self
     }
+
+    /* TODO:
+    ///
+    #[inline]
+    pub fn read(&self, addr: T) -> T {
+        // TRACE:
+        value = memory.read(addr);
+
+        // STARK:
+        curr.value = value;
+        curr.addr = addr;
+        curr.is_write = false;
+        next.timestamp = curr.timestamp + 1; // shared among all parts
+
+        todo!()
+    }
+
+    ///
+    #[inline]
+    pub fn write(&self, addr: T, value: T) {
+        // TRACE:
+        memory.write(addr, value);
+
+        // STARK:
+        curr.addr = addr;
+        curr.value = value;
+        curr.is_write = true;
+        next.timestamp = curr.timestamp + 1; // shared among all parts
+
+        todo!()
+    }
+    */
 }
 
 impl<COM> Variable<COM> for RwMemory
@@ -922,6 +1016,147 @@ where
             timestamp_permuted: compiler.allocate(),
             timestamp_sorted_diff: compiler.allocate(),
             timestamp_sorted_diff_permuted: compiler.allocate(),
+        }
+        .assert(compiler)
+    }
+}
+
+///
+pub struct Stack {
+    /// Stack Pointer
+    pub sp: Register,
+
+    /// Push/Pop Flag
+    pub is_pop: Register,
+
+    /// Read/Write Memory Gate
+    pub rw_memory: RwMemory,
+}
+
+impl Stack {
+    ///
+    #[inline]
+    pub fn permutations(&self) -> Vec<(Register, Register)> {
+        self.rw_memory.permutations()
+    }
+
+    ///
+    #[inline]
+    pub fn lookups(&self) -> Vec<Lookup> {
+        self.rw_memory.lookups()
+    }
+
+    ///
+    #[inline]
+    fn assert<COM>(self, compiler: &mut COM) -> Self
+    where
+        COM: Constraint<Target>
+            + ConstraintFiltered<Target, FirstRow>
+            + ConstraintFiltered<Target, Transition>
+            + ConstraintFiltered<Target, LastRow>
+            + Add<Target>
+            + Mul<Target>
+            + One<Target>
+            + Sub<Target>
+            + Zero<Target>,
+    {
+        let one = compiler.one();
+        let is_push = compiler.sub(one, self.is_pop.curr);
+        let sp_add_one = compiler.add(self.sp.curr, one);
+        let sp_sub_one = compiler.sub(self.sp.curr, one);
+
+        // Stack Semantics ===============================================================
+
+        // Check that is_pop is binary (only operations are pop and push)
+        compiler.assert_boolean(self.is_pop.curr);
+
+        // Check SP starts at 0.
+        compiler.assert_zero_first_row(self.sp.curr);
+
+        // If the current operation is a push, the following should be true:
+        // 1. addr should be sp
+        // 2. next sp should be sp + 1
+        // 3. is_write should be 1
+
+        compiler
+            .when(is_push)
+            .assert_eq(self.rw_memory.addr.curr, self.sp.curr)
+            .assert_eq_transition(self.sp.next, sp_add_one)
+            .assert_one(self.rw_memory.opcode.write.curr());
+
+        // If the current operation is a pop, the following should be true:
+        //
+        // 1. addr should be sp - 1
+        // 2. next sp should be sp - 1
+        // 3. is_write should be 0
+        //
+        // A corrolary of this is stack underflows (pop when sp is 0) can't happen since
+        // then the addresses wouldn't satisfy the continuity requirement.
+
+        compiler
+            .when(self.is_pop.curr)
+            .assert_eq(self.rw_memory.addr.curr, sp_sub_one)
+            .assert_eq_transition(self.sp.next, sp_sub_one)
+            .assert_zero(self.rw_memory.opcode.write.curr());
+
+        self
+    }
+
+    /* TODO:
+    ///
+    #[inline]
+    pub fn push(&self, value: T) {
+        // TRACE:
+        stack.push(value);
+        curr.rw_memory.value = value;
+
+        // STARK:
+        curr.is_pop = false;
+        curr.rw_memory.addr = curr.sp + 1;
+        curr.rw_memory.is_write = true;
+        next.timestamp = curr.timestamp + 1;
+        next.sp = curr.sp + 1;
+
+        todo!()
+    }
+
+    ///
+    #[inline]
+    pub fn pop(&self) -> T {
+        // TRACE:
+        value = stack.pop();
+        curr.rw_memory.value = value;
+
+        // STARK:
+        curr.is_pop = true;
+        curr.rw_memory.addr = curr.sp - 1;
+        curr.rw_memory.is_write = false;
+        next.timestamp = curr.timestamp + 1;
+        next.sp = curr.sp - 1;
+
+        todo!()
+    }
+    */
+}
+
+impl<COM> Variable<COM> for Stack
+where
+    COM: Constraint<Target>
+        + ConstraintFiltered<Target, FirstRow>
+        + ConstraintFiltered<Target, Transition>
+        + ConstraintFiltered<Target, LastRow>
+        + Add<Target>
+        + Mul<Target>
+        + One<Target>
+        + Sub<Target>
+        + Zero<Target>,
+{
+    #[inline]
+    fn create(compiler: &mut COM) -> Self {
+        Self {
+            sp: compiler.allocate(),
+            is_pop: compiler.allocate(),
+            rw_memory: compiler.allocate(),
         }
         .assert(compiler)
     }
