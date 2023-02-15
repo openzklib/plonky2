@@ -66,14 +66,18 @@ pub struct Keccak256SpongeRow<T: Copy> {
     /// rate part of the sponge state as u32s after the input block has been xor'd into the rate portion of the state
     /// i.e. the thing the permutation (keccak_f) will use as input
     ///
-    /// IMPORT XOR ORACLE
+    /// IMPORT XOR / PERMUTATION ORACLE
     pub xored_state_rate: [T; KECCAK_RATE_U32S],
 
     /// capacity words of the current sponge state as u32s
+    ///
+    /// IMPORT PERMUTATION ORACLE
     pub curr_state_capacity: [T; KECCAK_CAPACITY_U32S],
 
     /// new sponge state as u32s
     /// rate || capacity
+    ///
+    /// IMPORT PERMUTATION ORACLE
     pub new_state: [T; KECCAK_WIDTH_U32S],
 
     /// current block being absorbed as 32-bit chunks, each encoded as follows for lookup separation (from LSB to MSB):
