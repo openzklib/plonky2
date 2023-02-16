@@ -567,9 +567,9 @@ pub struct MachineIndex(usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ColumnIndex(usize);
 
-/// Target
+/// Column Variable
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Target {
+pub struct Var {
     /// Machine Index
     machine: MachineIndex,
 
@@ -609,15 +609,15 @@ pub struct Shape {
 
 /// Register
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Register {
-    /// Current Row Target
-    pub curr: Target,
+pub struct Register<T = Var> {
+    /// Current Row Variable
+    pub curr: T,
 
-    /// Next Row Target
-    pub next: Target,
+    /// Next Row Variable
+    pub next: T,
 }
 
-impl<COM> Variable<COM> for Register {
+impl<T, COM> Variable<COM> for Register<T> {
     #[inline]
     fn create(compiler: &mut COM) -> Self {
         let _ = compiler;
@@ -625,38 +625,52 @@ impl<COM> Variable<COM> for Register {
     }
 }
 
+///
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct OracleSourceRegister(Register);
+
+///
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct OracleTargetRegister(Register);
+
 /// Boolean Register
 #[derive(Clone, Copy, Debug)]
-pub struct Bool(Register);
+pub struct Bool<T = Var>(Register<T>);
 
-impl Bool {
+impl<T> Bool<T> {
     ///
     #[inline]
-    pub fn register(self) -> Register {
+    pub fn register(self) -> Register<T> {
         self.0
     }
 
     ///
     #[inline]
-    pub fn curr(self) -> Target {
+    pub fn curr(self) -> T {
         self.0.curr
     }
 
     ///
     #[inline]
-    pub fn next(self) -> Target {
+    pub fn next(self) -> T {
         self.0.next
     }
 
     ///
     #[inline]
-    pub fn create_unchecked<COM>(compiler: &mut COM) -> Self {
+    pub fn create_unchecked<COM>(compiler: &mut COM) -> Self
+    where
+        Register<T>: Variable<COM>,
+    {
         Self(compiler.allocate())
     }
 
     ///
     #[inline]
-    pub fn create_unchecked_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self> {
+    pub fn create_unchecked_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self>
+    where
+        Register<T>: Variable<COM>,
+    {
         (0..len).map(|_| Self::create_unchecked(compiler)).collect()
     }
 
@@ -664,18 +678,21 @@ impl Bool {
     #[inline]
     pub fn create_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self>
     where
-        COM: Constraint<Target> + Mul<Target> + One<Target> + Sub<Target>,
+        COM: Constraint<T> + Mul<T> + One<T> + Sub<T>,
+        T: Clone,
+        Register<T>: Variable<COM>,
     {
         compiler.allocate_vec(len)
     }
 
     ///
     #[inline]
-    pub fn from_register<COM>(register: Register, compiler: &mut COM) -> Self
+    pub fn from_register<COM>(register: Register<T>, compiler: &mut COM) -> Self
     where
-        COM: Constraint<Target> + Mul<Target> + One<Target> + Sub<Target>,
+        COM: Constraint<T> + Mul<T> + One<T> + Sub<T>,
+        T: Clone,
     {
-        compiler.assert_boolean(register.curr);
+        compiler.assert_boolean(register.curr.clone());
         Self(register)
     }
 
@@ -683,19 +700,22 @@ impl Bool {
     #[inline]
     pub fn not<COM>(self, compiler: &mut COM) -> Self
     where
-        COM: One<Target> + Sub<Target>,
+        COM: One<T> + Sub<T>,
+        T: Clone,
     {
         let one = compiler.one();
         Self(Register {
-            curr: compiler.sub(one, self.curr()),
+            curr: compiler.sub(one.clone(), self.clone().curr()),
             next: compiler.sub(one, self.next()),
         })
     }
 }
 
-impl<COM> Variable<COM> for Bool
+impl<T, COM> Variable<COM> for Bool<T>
 where
-    COM: Constraint<Target> + Mul<Target> + One<Target> + Sub<Target>,
+    COM: Constraint<T> + Mul<T> + One<T> + Sub<T>,
+    T: Clone,
+    Register<T>: Variable<COM>,
 {
     #[inline]
     fn create(compiler: &mut COM) -> Self {
@@ -709,25 +729,25 @@ macro_rules! define_opcode {
     ($(#[$meta:meta])* $vis:vis $name:ident { $head:ident, $($tail:ident),+ $(,)? }) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug)]
-        $vis struct $name {
+        $vis struct $name<T = Var> {
             #[doc = "Opcode `"]
             #[doc = stringify!($head)]
             #[doc = "`"]
-            pub $head: Bool,
+            pub $head: Bool<T>,
 
             $(
                 #[doc = "Opcode `"]
                 #[doc = stringify!($tail)]
                 #[doc = "`"]
-                pub $tail: Bool
+                pub $tail: Bool<T>
             ),+,
 
             /// Opcode Bit Sum
-            pub bit_sum: Bool,
+            pub bit_sum: Bool<T>,
         }
 
-        impl core::ops::Index<usize> for $name {
-            type Output = Bool;
+        impl<T> core::ops::Index<usize> for $name<T> {
+            type Output = Bool<T>;
 
             #[inline]
             fn index(&self, index: usize) -> &Self::Output {
@@ -735,25 +755,26 @@ macro_rules! define_opcode {
             }
         }
 
-        impl<COM> Variable<COM> for $name
+        impl<T, COM> Variable<COM> for $name<T>
         where
-            COM: Add<Target> + Constraint<Target> + Mul<Target> + One<Target> + Sub<Target> + Zero<Target>,
+            COM: Add<T> + Constraint<T> + Mul<T> + One<T> + Sub<T> + Zero<T>,
+            T: Clone,
         {
             #[inline]
             fn create(compiler: &mut COM) -> Self {
-                struct TailOpcodes {
-                    $($tail: Bool),+
+                struct TailOpcodes<S> {
+                    $($tail: Bool<S>),+
                 }
                 let tail_opcodes = TailOpcodes { $($tail: compiler.allocate()),+ };
                 let bit_sum =  Bool::from_register(
                     Register {
-                        curr: compiler.sum([$(tail_opcodes.$tail.curr()),+]),
-                        next: compiler.sum([$(tail_opcodes.$tail.next()),+]),
+                        curr: compiler.sum([$(tail_opcodes.$tail.clone().curr()),+]),
+                        next: compiler.sum([$(tail_opcodes.$tail.clone().next()),+]),
                     },
                     compiler
                 );
                 Self {
-                    $head: bit_sum.not(compiler),
+                    $head: bit_sum.clone().not(compiler),
                     $($tail: tail_opcodes.$tail),+,
                     bit_sum
                 }
@@ -803,7 +824,7 @@ impl Lookup {
     #[inline]
     pub fn assert<COM>(self, compiler: &mut COM)
     where
-        COM: Constraint<Target> + ConstraintFiltered<Target, LastRow> + Mul<Target> + Sub<Target>,
+        COM: Constraint<Var> + ConstraintFiltered<Var, LastRow> + Mul<Var> + Sub<Var>,
     {
         assert_lookup(
             self.permuted_input.curr,
@@ -832,11 +853,11 @@ impl Timestamp {
 
 impl<COM> Variable<COM> for Timestamp
 where
-    COM: Constraint<Target>
-        + ConstraintFiltered<Target, FirstRow>
-        + ConstraintFiltered<Target, Transition>
-        + One<Target>
-        + Sub<Target>,
+    COM: Constraint<Var>
+        + ConstraintFiltered<Var, FirstRow>
+        + ConstraintFiltered<Var, Transition>
+        + One<Var>
+        + Sub<Var>,
 {
     #[inline]
     fn create(compiler: &mut COM) -> Self {
@@ -916,15 +937,15 @@ impl RwMemory {
     #[inline]
     fn assert<COM>(self, compiler: &mut COM) -> Self
     where
-        COM: Constraint<Target>
-            + ConstraintFiltered<Target, FirstRow>
-            + ConstraintFiltered<Target, Transition>
-            + ConstraintFiltered<Target, LastRow>
-            + Add<Target>
-            + Mul<Target>
-            + One<Target>
-            + Sub<Target>
-            + Zero<Target>,
+        COM: Constraint<Var>
+            + ConstraintFiltered<Var, FirstRow>
+            + ConstraintFiltered<Var, Transition>
+            + ConstraintFiltered<Var, LastRow>
+            + Add<Var>
+            + Mul<Var>
+            + One<Var>
+            + Sub<Var>
+            + Zero<Var>,
     {
         let one = compiler.one();
 
@@ -1036,15 +1057,15 @@ impl RwMemory {
 
 impl<COM> Variable<COM> for RwMemory
 where
-    COM: Constraint<Target>
-        + ConstraintFiltered<Target, FirstRow>
-        + ConstraintFiltered<Target, Transition>
-        + ConstraintFiltered<Target, LastRow>
-        + Add<Target>
-        + Mul<Target>
-        + One<Target>
-        + Sub<Target>
-        + Zero<Target>,
+    COM: Constraint<Var>
+        + ConstraintFiltered<Var, FirstRow>
+        + ConstraintFiltered<Var, Transition>
+        + ConstraintFiltered<Var, LastRow>
+        + Add<Var>
+        + Mul<Var>
+        + One<Var>
+        + Sub<Var>
+        + Zero<Var>,
 {
     #[inline]
     fn create(compiler: &mut COM) -> Self {
@@ -1094,15 +1115,15 @@ impl Stack {
     #[inline]
     fn assert<COM>(self, compiler: &mut COM) -> Self
     where
-        COM: Constraint<Target>
-            + ConstraintFiltered<Target, FirstRow>
-            + ConstraintFiltered<Target, Transition>
-            + ConstraintFiltered<Target, LastRow>
-            + Add<Target>
-            + Mul<Target>
-            + One<Target>
-            + Sub<Target>
-            + Zero<Target>,
+        COM: Constraint<Var>
+            + ConstraintFiltered<Var, FirstRow>
+            + ConstraintFiltered<Var, Transition>
+            + ConstraintFiltered<Var, LastRow>
+            + Add<Var>
+            + Mul<Var>
+            + One<Var>
+            + Sub<Var>
+            + Zero<Var>,
     {
         let one = compiler.one();
         let is_push = compiler.sub(one, self.is_pop.curr);
@@ -1185,15 +1206,15 @@ impl Stack {
 
 impl<COM> Variable<COM> for Stack
 where
-    COM: Constraint<Target>
-        + ConstraintFiltered<Target, FirstRow>
-        + ConstraintFiltered<Target, Transition>
-        + ConstraintFiltered<Target, LastRow>
-        + Add<Target>
-        + Mul<Target>
-        + One<Target>
-        + Sub<Target>
-        + Zero<Target>,
+    COM: Constraint<Var>
+        + ConstraintFiltered<Var, FirstRow>
+        + ConstraintFiltered<Var, Transition>
+        + ConstraintFiltered<Var, LastRow>
+        + Add<Var>
+        + Mul<Var>
+        + One<Var>
+        + Sub<Var>
+        + Zero<Var>,
 {
     #[inline]
     fn create(compiler: &mut COM) -> Self {
