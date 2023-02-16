@@ -559,6 +559,26 @@ pub trait Allocator {
 
 impl<COM> Allocator for COM where COM: ?Sized {}
 
+/// Machine
+pub trait Machine<COM = ()> {
+    /// Metadata Type
+    type Metadata;
+
+    /// Creates a new instance of the machine over the given `metadata`,
+    /// including generating the row-by-row constraints.
+    ///
+    /// `metadata` should contain
+    ///     - number of exported channels (`usize`)
+    ///     - imported columns (set of `OracleRegister` types)
+    ///
+    /// This `compiler` only needs to be able to do:
+    ///     - allocation
+    ///     - oracle linking
+    ///     - arithmetic
+    ///     - constraints
+    fn create(metadata: Self::Metadata, compiler: &mut COM) -> Self;
+}
+
 /// Machine Index
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MachineIndex(usize);
@@ -567,21 +587,48 @@ pub struct MachineIndex(usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ColumnIndex(usize);
 
-/// Column Variable
+/// Column
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Var {
+pub struct Column {
     /// Machine Index
     machine: MachineIndex,
 
     /// Column Index
     column: ColumnIndex,
+}
+
+/// Variable
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Var {
+    /// Column
+    pub column: Column,
 
     /// Row Shift
     ///
     /// Counts how many rows away this target is relative to the current row.
     /// For the current row, `row_shift = 0` and for the next row
     /// `row_shift = 1`.
-    row_shift: usize,
+    pub row_shift: usize,
+}
+
+impl Var {
+    ///
+    #[inline]
+    pub fn from_curr(column: Column) -> Self {
+        Self {
+            column,
+            row_shift: 0,
+        }
+    }
+
+    ///
+    #[inline]
+    pub fn from_next(column: Column) -> Self {
+        Self {
+            column,
+            row_shift: 1,
+        }
+    }
 }
 
 /// Oracle Wiring
@@ -625,16 +672,35 @@ impl<T, COM> Variable<COM> for Register<T> {
     }
 }
 
+/// Oracle Source Register
 ///
+/// This kind of register can only be created whenever we have a column that we create an oracle
+/// from using `compiler.create_oracle(column) -> OracleSourceRegister`.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct OracleSourceRegister(Register);
+pub struct OracleSourceRegister {
+    ///
+    source: Register,
 
+    ///
+    filter: Bool,
+}
+
+/// Oracle Target Register
 ///
+/// This kind of register can only be created whenever we have an `OracleSourceRegister` to bind to it using
+/// `compiler.create_oracle(column) -> OracleTargetRegister` which should error if the `compiler`
+/// current machine index is the same. No internal oracle columns?
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct OracleTargetRegister(Register);
+pub struct OracleTargetRegister {
+    ///
+    target: Register,
+
+    ///
+    filter: Bool,
+}
 
 /// Boolean Register
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Bool<T = Var>(Register<T>);
 
 impl<T> Bool<T> {
