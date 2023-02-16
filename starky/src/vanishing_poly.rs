@@ -14,7 +14,7 @@ use crate::permutation::{
 };
 use crate::stark::Stark;
 
-pub(crate) fn eval_vanishing_poly<F, FE, P, C, S, const D: usize, const D2: usize>(
+pub(crate) fn eval_vanishing_poly<F, FE, P, S, const D: usize, const D2: usize>(
     stark: &S,
     config: &StarkConfig,
     registers: Registers<P>,
@@ -24,12 +24,11 @@ pub(crate) fn eval_vanishing_poly<F, FE, P, C, S, const D: usize, const D2: usiz
     F: RichField + Extendable<D>,
     FE: FieldExtension<D2, BaseField = F>,
     P: PackedField<Scalar = FE>,
-    C: GenericConfig<D, F = F>,
     S: Stark<P, ConstraintConsumer<P>>,
 {
     stark.eval_with(registers, consumer, &mut ());
     if let Some(permutation_data) = permutation_data {
-        eval_permutation_checks::<F, FE, P, C, S, D, D2>(
+        eval_permutation_checks::<F, FE, P, S, D, D2>(
             stark,
             config,
             registers,
@@ -39,7 +38,7 @@ pub(crate) fn eval_vanishing_poly<F, FE, P, C, S, const D: usize, const D2: usiz
     }
 }
 
-pub(crate) fn eval_vanishing_poly_circuit<F, C, S, const D: usize>(
+pub(crate) fn eval_vanishing_poly_circuit<F, S, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     stark: &S,
     config: &StarkConfig,
@@ -48,7 +47,6 @@ pub(crate) fn eval_vanishing_poly_circuit<F, C, S, const D: usize>(
     consumer: &mut RecursiveConstraintConsumer<D>,
 ) where
     F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
     S: Stark<ExtensionTarget<D>, RecursiveConstraintConsumer<D>, CircuitBuilder<F, D>>,
 {
     stark.eval_with(registers, consumer, builder);

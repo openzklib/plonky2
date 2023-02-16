@@ -559,12 +559,56 @@ pub trait Allocator {
 
 impl<COM> Allocator for COM where COM: ?Sized {}
 
+/// Machine Index
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct MachineIndex(usize);
+
+/// Column Index
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ColumnIndex(usize);
+
 /// Target
-#[derive(Clone, Copy, Debug)]
-pub struct Target(());
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Target {
+    /// Machine Index
+    machine: MachineIndex,
+
+    /// Column Index
+    column: ColumnIndex,
+
+    /// Row Shift
+    ///
+    /// Counts how many rows away this target is relative to the current row.
+    /// For the current row, `row_shift = 0` and for the next row
+    /// `row_shift = 1`.
+    row_shift: usize,
+}
+
+/// Oracle Wiring
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct OracleWiring {
+    /// Source Machine Index
+    pub source_machine: MachineIndex,
+
+    /// Source Column Index
+    pub source_column: ColumnIndex,
+
+    /// Target Column Index
+    pub target_column: ColumnIndex,
+}
+
+/// Multi-Machine Shape
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Shape {
+    /// Oracle Dependencies
+    pub oracle_dependencies: Vec<Vec<OracleWiring>>,
+
+    /// Channel Counts
+    pub channel_counts: Vec<(ColumnIndex, usize)>,
+}
 
 /// Register
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Register {
     /// Current Row Target
     pub curr: Target,

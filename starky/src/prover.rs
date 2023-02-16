@@ -79,7 +79,7 @@ where
                 config.num_challenges,
                 stark.metadata().permutation_batch_size(),
             );
-            let permutation_z_polys = compute_permutation_z_polys::<F, C, S, D>(
+            let permutation_z_polys = compute_permutation_z_polys::<F, S, D>(
                 &stark,
                 config,
                 &trace_poly_values,
@@ -281,7 +281,7 @@ where
                     permutation_challenge_sets: permutation_challenge_sets.to_vec(),
                 },
             );
-            eval_vanishing_poly::<F, F, P, C, S, D, 1>(
+            eval_vanishing_poly::<F, F, P, S, D, 1>(
                 stark,
                 config,
                 vars,

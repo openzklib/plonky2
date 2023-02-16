@@ -90,7 +90,7 @@ pub(crate) fn verify_stark_proof_with_challenges<
             next_zs: permutation_zs_next.as_ref().unwrap().clone(),
             permutation_challenge_sets: challenges.permutation_challenge_sets.unwrap(),
         });
-    eval_vanishing_poly::<F, F::Extension, F::Extension, C, S, D, D>(
+    eval_vanishing_poly::<F, F::Extension, F::Extension, S, D, D>(
         &stark,
         config,
         vars,
