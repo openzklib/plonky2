@@ -568,15 +568,42 @@ pub trait Machine<COM = ()> {
     /// including generating the row-by-row constraints.
     ///
     /// `metadata` should contain
-    ///     - number of exported channels (`usize`)
     ///     - imported columns (set of `OracleRegister` types)
     ///
     /// This `compiler` only needs to be able to do:
     ///     - allocation
-    ///     - oracle linking
+    ///     - lookup linking (lookup tables, permutations, CTLs)
     ///     - arithmetic
     ///     - constraints
+    ///
+    /// The return type should only include the columns that are exported by this machine, no
+    /// intermediate columns. Columns inside this machine should also be wired to describe the
+    /// permutation information.
+    ///
+    /// Permutation linkages:
+    ///     - compiler.link_permutation(input, table)
+    ///
+    /// Lookup linkages:
+    ///     - compiler.link_lookup(input, table, input_permuted, table_permuted)
     fn create(metadata: Self::Metadata, compiler: &mut COM) -> Self;
+}
+
+///
+pub trait PermutationLinker<T> {
+    /// In the shape compiler this builds permutation shape tables.
+    ///     In the trace it adds the sorting.
+    /// In an execution compiler it does nothing (eventually move this part out of the vanishing
+    /// polynomial section and into here).
+    fn link_permutation(&mut self, input: T, table: T);
+}
+
+///
+pub trait LookupLinker<T> {
+    /// In the shape compiler this builds the lookup shape table.
+    ///     In the trace it adds lookup columns (`gen_luts`).
+    /// In an execution compiler it adds the lookup constraints over input_permuted and
+    /// table_permuted.
+    fn link_lookup(&mut self, input: T, table: T, input_permuted: T, table_permuted: T);
 }
 
 /// Machine Index
