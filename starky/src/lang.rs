@@ -1,5 +1,7 @@
 //! STARK Language
 
+use core::ops::Range;
+
 /// Constraint
 pub trait Constraint<T> {
     /// Asserts that `value == 0`.
@@ -560,8 +562,40 @@ pub trait Allocator {
 impl<COM> Allocator for COM where COM: ?Sized {}
 
 /// Executor
+pub trait Executor<T> {
+    /// Executes the function `f` over the values of the incoming `variables` assigning its output
+    /// to a new intermediate variable which is returned. If any of the variables has no assigned value,
+    /// an `Err` is returned with the unknown variable.
+    fn execute<F, const N: usize>(&mut self, variables: &[Var; N], f: F) -> Result<Var, Var>
+    where
+        F: FnOnce([&T; N]) -> T;
+
+    /// Executes the unary operation `f` over `value`.
+    ///
+    /// See the [`execute`](Self::execute) method for more details.
+    #[inline]
+    fn execute_unary_op<F>(&mut self, value: Var, f: F) -> Result<Var, Var>
+    where
+        F: FnOnce(&T) -> T,
+    {
+        self.execute(&[value], move |[x]| f(x))
+    }
+
+    /// Executes the binary operation `f` over the `lhs` and `rhs` values.
+    ///
+    /// See the [`execute`](Self::execute) method for more details.
+    #[inline]
+    fn execute_binary_op<F>(&mut self, lhs: Var, rhs: Var, f: F) -> Result<Var, Var>
+    where
+        F: FnOnce(&T, &T) -> T,
+    {
+        self.execute(&[lhs, rhs], move |[x, y]| f(x, y))
+    }
+}
+
+/// Generic Executor
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Executor<T> {
+pub struct GenericExecutor<T> {
     /// Flattened Column Data
     ///
     /// Each section of the vector is formatted as
@@ -592,8 +626,8 @@ pub struct Executor<T> {
     intermediate_values: Vec<T>,
 }
 
-impl<T> Executor<T> {
-    /// Builds an [`Executor`] over the machine `data` where each item in the iterator is the
+impl<T> GenericExecutor<T> {
+    /// Builds a [`GenericExecutor`] over the machine `data` where each item in the iterator is the
     /// vector of current-row columns, the vector of next-row columns, and the vector of public
     /// inputs respectively.
     #[inline]
@@ -652,7 +686,7 @@ impl<T> Executor<T> {
     #[inline]
     pub fn value_of(&self, variable: Var) -> Option<&T> {
         match variable.0 {
-            VarData::ColumnVariable { column, row_shift } => {
+            VarData::Column { column, row_shift } => {
                 // NOTE: We only support a stride of 2 right now.
                 assert!(row_shift < 2, "Only current and next rows are supported!");
                 self.columns(column.machine)?
@@ -666,7 +700,7 @@ impl<T> Executor<T> {
     /// Executes the function `f` over the values of the incoming `variables`. If any of the
     /// variables has no assigned value, an `Err` is returned with the unknown variable.
     #[inline]
-    pub fn execute<F, const N: usize, Output>(
+    pub fn compute_value<F, const N: usize, Output>(
         &mut self,
         variables: &[Var; N],
         f: F,
@@ -689,44 +723,103 @@ impl<T> Executor<T> {
 
     /// Executes the binary operation `f` over the `lhs` and `rhs` values.
     ///
-    /// See the [`execute`](Self::execute) method for more details.
+    /// See the [`compute_value`](Self::compute_value) method for more details.
     #[inline]
-    pub fn execute_binary_op<F, Output>(&mut self, lhs: Var, rhs: Var, f: F) -> Result<Output, Var>
+    pub fn compute_binary_op_value<F, Output>(
+        &mut self,
+        lhs: Var,
+        rhs: Var,
+        f: F,
+    ) -> Result<Output, Var>
     where
         F: FnOnce(&T, &T) -> Output,
     {
-        self.execute(&[lhs, rhs], move |[x, y]| f(x, y))
+        self.compute_value(&[lhs, rhs], move |[x, y]| f(x, y))
     }
+}
 
-    /// Executes the function `f` over the values of the incoming `variables` assigning its output
-    /// to a new intermediate variable which is returned. If any of the variables has no assigned value,
-    /// an `Err` is returned with the unknown variable.
+impl<T> Executor<T> for GenericExecutor<T> {
     #[inline]
-    pub fn execute_assign<F, const N: usize>(
-        &mut self,
-        variables: &[Var; N],
-        f: F,
-    ) -> Result<Var, Var>
+    fn execute<F, const N: usize>(&mut self, variables: &[Var; N], f: F) -> Result<Var, Var>
     where
         F: FnOnce([&T; N]) -> T,
     {
         let output_variable = Var(VarData::IntermediateVariable(
             self.intermediate_values.len(),
         ));
-        let output_value = self.execute(variables, f)?;
+        let output_value = self.compute_value(variables, f)?;
         self.intermediate_values.push(output_value);
         Ok(output_variable)
     }
+}
 
-    /// Executes the binary operation `f` over the `lhs` and `rhs` values.
-    ///
-    /// See the [`execute_assign`](Self::execute_assign) method for more details.
+/// Empty Executor
+pub struct EmptyExecutor {
+    /// Column Counts
+    column_counts: Vec<usize>,
+
+    /// Public Input Counts
+    public_input_counts: Vec<usize>,
+
+    /// Intermediate Value Count
+    intermediate_value_count: usize,
+}
+
+impl EmptyExecutor {
+    /// Builds a new [`EmptyExecutor`] over the machine `counts` data where each item in the
+    /// iterator is a pair with the number of columns and the number of public inputs for that
+    /// machine.
     #[inline]
-    pub fn execute_assign_binary_op<F>(&mut self, lhs: Var, rhs: Var, f: F) -> Result<Var, Var>
+    pub fn new<I>(counts: I) -> Self
     where
-        F: FnOnce(&T, &T) -> T,
+        I: IntoIterator<Item = (usize, usize)>,
     {
-        self.execute_assign(&[lhs, rhs], move |[x, y]| f(x, y))
+        let (column_counts, public_input_counts) = counts.into_iter().unzip();
+        Self {
+            column_counts,
+            public_input_counts,
+            intermediate_value_count: 0,
+        }
+    }
+
+    /// Returns `true` if `variable` was allocated on the correct machine and corresponds to a
+    /// real column or public input or if the `variable` represents a valid intermediate value.
+    #[inline]
+    fn is_valid_variable(&self, variable: Var) -> bool {
+        match variable.0 {
+            VarData::Column {
+                column: Column { machine, index },
+                row_shift,
+            } => {
+                assert!(row_shift < 2, "Only current and next rows are supported!");
+                matches!(self.column_counts.get(machine.0), Some(count) if index.0 < *count)
+            }
+            VarData::PublicInput(PublicInput { machine, index }) => {
+                matches!(self.public_input_counts.get(machine.0), Some(count) if index.0 < *count)
+            }
+            VarData::IntermediateVariable(index) => index < self.intermediate_value_count,
+        }
+    }
+}
+
+impl<T> Executor<T> for EmptyExecutor {
+    /// Performs an empty execution by checking that all the variables are within the right bounds
+    /// and computes a new intermediate variable. This method will return `Err` whenever one of the
+    /// input variables is invalid.
+    #[inline]
+    fn execute<F, const N: usize>(&mut self, variables: &[Var; N], f: F) -> Result<Var, Var>
+    where
+        F: FnOnce([&T; N]) -> T,
+    {
+        let _ = f;
+        let output_variable = Var(VarData::IntermediateVariable(self.intermediate_value_count));
+        for var in variables {
+            if !self.is_valid_variable(*var) {
+                return Err(*var);
+            }
+        }
+        self.intermediate_value_count += 1;
+        Ok(output_variable)
     }
 }
 
@@ -813,15 +906,14 @@ pub struct PublicInput {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum VarData {
     /// Column Variable
-    ColumnVariable {
+    Column {
         /// Column
         column: Column,
 
         /// Row Shift
         ///
         /// Counts how many rows away this target is relative to the current row.
-        /// For the current row, `row_shift = 0` and for the next row
-        /// `row_shift = 1`.
+        /// For the current row, `row_shift = 0` and for the next row `row_shift = 1`.
         row_shift: usize,
     },
 
