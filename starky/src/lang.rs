@@ -559,6 +559,127 @@ pub trait Allocator {
 
 impl<COM> Allocator for COM where COM: ?Sized {}
 
+/// Executor
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Executor<T> {
+    /// Flattened Column Data
+    ///
+    /// Each section of the vector is formatted as
+    /// ```
+    /// [ ... x1.curr x1.next x2.curr x2.next ... ]
+    /// ```
+    /// and the location of the sections is given by the `column_starting_indices` vector, storing
+    /// the machines contiguously.
+    flattened_columns: Vec<T>,
+
+    /// Flattened Public Inputs
+    ///
+    /// Each section of the vector is a flat extension of the public inputs for a given machine.
+    /// The locations of the sections is given by the `public_input_starting_indices` vector,
+    /// storing the machines contiguously.
+    flattened_public_inputs: Vec<T>,
+
+    /// Intermediate Values
+    ///
+    /// This is a flat map from indices to values which can represent any intermediate values
+    /// coming from any machine.
+    intermediate_values: Vec<T>,
+
+    /// Machine Column Data Starting Indices
+    column_starting_indices: Vec<usize>,
+
+    /// Machine Public Input Starting Indices
+    public_input_starting_indices: Vec<usize>,
+}
+
+impl<T> Executor<T> {
+    ///
+    #[inline]
+    pub fn new(columns: Vec<(Vec<T>, Vec<T>)>, public_inputs: Vec<Vec<T>>) -> Self {
+        assert_eq!(columns.len(), public_inputs.len(), "");
+        todo!()
+    }
+
+    /// Returns the columns slice (interleaving current and next rows) for the given `index`.
+    #[inline]
+    fn columns(&self, index: MachineIndex) -> Option<&[T]> {
+        let start = *self.column_starting_indices.get(index.0)?;
+        Some(match self.column_starting_indices.get(index.0 + 1) {
+            Some(last) => &self.flattened_columns[start..*last],
+            _ => &self.flattened_columns[start..],
+        })
+    }
+
+    /// Returns the public inputs slice for the given `index`.
+    #[inline]
+    fn public_inputs(&self, index: MachineIndex) -> Option<&[T]> {
+        let start = *self.public_input_starting_indices.get(index.0)?;
+        Some(match self.public_input_starting_indices.get(index.0 + 1) {
+            Some(last) => &self.flattened_public_inputs[start..*last],
+            _ => &self.flattened_public_inputs[start..],
+        })
+    }
+
+    /// Returns the value of `variable` if it exists in the executor.
+    #[inline]
+    pub fn value_of(&self, variable: Var) -> Option<&T> {
+        match variable.0 {
+            VarData::ColumnVariable { column, row_shift } => {
+                // NOTE: We only support a stride of 2 right now.
+                assert!(row_shift < 2, "Only current and next rows are supported!");
+                self.columns(column.machine)?
+                    .get(2 * column.index.0 + row_shift)
+            }
+            VarData::PublicInput(index) => self.public_inputs(index.machine)?.get(index.index.0),
+            VarData::IntermediateVariable(index) => self.intermediate_values.get(index),
+        }
+    }
+
+    /// Executes the function `f` over the values of the incoming `variables`. If any of the
+    /// variables has no assigned value, an `Err` is returned with the unknown variable.
+    #[inline]
+    pub fn execute<F, const N: usize, Output>(
+        &mut self,
+        variables: &[Var; N],
+        f: F,
+    ) -> Result<Output, Var>
+    where
+        F: FnOnce([&T; N]) -> Output,
+    {
+        let mut values = vec![];
+        for var in variables {
+            if let Some(value) = self.value_of(*var) {
+                values.push(value);
+            } else {
+                return Err(*var);
+            }
+        }
+        Ok(f(values.try_into().ok().expect(
+            "The value slice and variable slice are guaranteed to have the same size",
+        )))
+    }
+
+    /// Executes the function `f` over the values of the incoming `variables` assigning its output
+    /// to a new intermediate variable which is returned. If any of the variables has no assigned value,
+    /// an `Err` is returned with the unknown variable.
+    #[inline]
+    pub fn execute_assign<F, const N: usize>(
+        &mut self,
+        variables: &[Var; N],
+        f: F,
+    ) -> Result<Var, Var>
+    where
+        F: FnOnce([&T; N]) -> T,
+    {
+        let output_variable = Var(VarData::IntermediateVariable(
+            self.intermediate_values.len(),
+        ));
+        let output_value = self.execute(variables, f)?;
+        self.intermediate_values.push(output_value);
+        Ok(output_variable)
+    }
+}
+
 /// Machine
 pub trait Machine<COM = ()> {
     /// Metadata Type
@@ -614,6 +735,10 @@ pub struct MachineIndex(usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ColumnIndex(usize);
 
+/// Public Input Index
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct PublicInputIndex(usize);
+
 /// Column
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Column {
@@ -621,42 +746,48 @@ pub struct Column {
     machine: MachineIndex,
 
     /// Column Index
-    column: ColumnIndex,
+    index: ColumnIndex,
+}
+
+/// Public Input
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PublicInput {
+    /// Machine Index
+    machine: MachineIndex,
+
+    /// Public Input Index
+    index: PublicInputIndex,
+}
+
+/// Variable Data
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum VarData {
+    /// Column Variable
+    ColumnVariable {
+        /// Column
+        column: Column,
+
+        /// Row Shift
+        ///
+        /// Counts how many rows away this target is relative to the current row.
+        /// For the current row, `row_shift = 0` and for the next row
+        /// `row_shift = 1`.
+        row_shift: usize,
+    },
+
+    /// Public Input Variable
+    PublicInput(PublicInput),
+
+    /// Intermediate Variable
+    ///
+    /// Any computations over columns produce intermediate values that will be constrained
+    /// internally.
+    IntermediateVariable(usize),
 }
 
 /// Variable
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Var {
-    /// Column
-    pub column: Column,
-
-    /// Row Shift
-    ///
-    /// Counts how many rows away this target is relative to the current row.
-    /// For the current row, `row_shift = 0` and for the next row
-    /// `row_shift = 1`.
-    pub row_shift: usize,
-}
-
-impl Var {
-    ///
-    #[inline]
-    pub fn from_curr(column: Column) -> Self {
-        Self {
-            column,
-            row_shift: 0,
-        }
-    }
-
-    ///
-    #[inline]
-    pub fn from_next(column: Column) -> Self {
-        Self {
-            column,
-            row_shift: 1,
-        }
-    }
-}
+pub struct Var(VarData);
 
 /// Oracle Wiring
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -875,6 +1006,55 @@ macro_rules! define_opcode {
         }
     };
 }
+
+define_opcode!(
+    pub RlpOpcode {
+        new_entry, list, recurse, return_, str_push, str_prefix, list_prefix, end_entry, halt
+    }
+);
+
+/*
+
+///
+pub struct Oracle<T> {
+    ///
+    column: Column,
+
+    ///
+    filter_column: Column,
+
+    ///
+    __: PhantomData<T>,
+}
+
+pub struct RlpInputMemoryColumns {
+    pub addr: Oracle<Register>,
+    pub value: Oracle<Register>,
+}
+
+pub struct RlpCallStackColumns {
+    pub is_pop: Oracle<Bool>,
+    pub value: Oracle<Register>,
+    pub timestamp: Oracle<Timestamp>,
+}
+
+pub struct RlpOutputStackColumns {
+    pub addr: Oracle<Addr>,
+    pub value: Oracle<Addr>,
+}
+
+pub struct RlpImportColumns {
+    ///
+    pub input_memory: [RlpInputMemoryColumns; 5],
+
+    ///
+    pub call_stack: [RlpCallStackColumns; 3],
+
+    ///
+    pub output_stack: [RlpOutputStackColumns; 5],
+}
+
+*/
 
 /// Asserts a valid lookup over `curr_input`, `next_input`, and `next_table` in the `compiler`.
 #[inline]
