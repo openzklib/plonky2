@@ -1263,34 +1263,34 @@ pub struct RwMemory {
     pub addr: Register,
 
     /// Sorted Address
-    pub addr_sorted: Register,
+    addr_sorted: Register,
 
     /// Value
     pub value: Register,
 
     /// Sorted Values
-    pub value_sorted: Register,
+    value_sorted: Register,
 
     /// Opcode
     pub opcode: RwMemoryOpcode,
 
     /// Sorted Read/Write Flag
-    pub is_write_sorted: Bool,
+    is_write_sorted: Bool,
 
     /// Timestamp
     pub timestamp: Timestamp,
 
     /// Sorted Timestamp
-    pub timestamp_sorted: Register,
+    timestamp_sorted: Register,
 
     /// Used to range check addresses and timestamp differenes
-    pub timestamp_permuted: Register,
+    timestamp_permuted: Register,
 
     /// Used for checking timestamp ordering via range check
-    pub timestamp_sorted_diff: Register,
+    timestamp_sorted_diff: Register,
 
     /// Used for checking timestamp ordering via range check
-    pub timestamp_sorted_diff_permuted: Register,
+    timestamp_sorted_diff_permuted: Register,
 }
 
 impl RwMemory {
@@ -1482,11 +1482,23 @@ impl Stack {
 
     ///
     #[inline]
-    pub fn push() {}
+    pub fn assert_push<COM>(&self, value: Var, compiler: &mut COM)
+    where
+        COM: Constraint<Var> + One<Var> + Sub<Var>,
+    {
+        compiler.assert_one(self.is_pop.curr());
+        compiler.assert_eq(self.rw_memory.value.curr, value);
+    }
 
     ///
     #[inline]
-    pub fn pop() {}
+    pub fn assert_pop<COM>(&self, value: Var, compiler: &mut COM)
+    where
+        COM: Constraint<Var> + One<Var> + Sub<Var>,
+    {
+        compiler.assert_zero(self.is_pop.curr());
+        compiler.assert_eq(self.rw_memory.value.curr, value);
+    }
 
     /* TODO:
     ///
