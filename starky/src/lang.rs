@@ -572,6 +572,9 @@ pub struct Executor<T> {
     /// the machines contiguously.
     flattened_columns: Vec<T>,
 
+    /// Machine Column Data Starting Indices
+    column_starting_indices: Vec<usize>,
+
     /// Flattened Public Inputs
     ///
     /// Each section of the vector is a flat extension of the public inputs for a given machine.
@@ -579,25 +582,50 @@ pub struct Executor<T> {
     /// storing the machines contiguously.
     flattened_public_inputs: Vec<T>,
 
+    /// Machine Public Input Starting Indices
+    public_input_starting_indices: Vec<usize>,
+
     /// Intermediate Values
     ///
     /// This is a flat map from indices to values which can represent any intermediate values
     /// coming from any machine.
     intermediate_values: Vec<T>,
-
-    /// Machine Column Data Starting Indices
-    column_starting_indices: Vec<usize>,
-
-    /// Machine Public Input Starting Indices
-    public_input_starting_indices: Vec<usize>,
 }
 
 impl<T> Executor<T> {
-    ///
+    /// Builds an [`Executor`] over the machine `data` where each item in the iterator is the
+    /// vector of current-row columns, the vector of next-row columns, and the vector of public
+    /// inputs respectively.
     #[inline]
-    pub fn new(columns: Vec<(Vec<T>, Vec<T>)>, public_inputs: Vec<Vec<T>>) -> Self {
-        assert_eq!(columns.len(), public_inputs.len(), "");
-        todo!()
+    pub fn new<I>(data: I) -> Self
+    where
+        I: IntoIterator<Item = (Vec<T>, Vec<T>, Vec<T>)>,
+    {
+        let mut flattened_columns = vec![];
+        let mut column_starting_indices = vec![];
+        let mut flattened_public_inputs = vec![];
+        let mut public_input_starting_indices = vec![];
+        for (curr, next, mut public_inputs) in data {
+            assert_eq!(
+                curr.len(),
+                next.len(),
+                "Current row and next row must have the same number of columns."
+            );
+            column_starting_indices.push(flattened_columns.len());
+            public_input_starting_indices.push(flattened_public_inputs.len());
+            for (curr, next) in curr.into_iter().zip(next) {
+                flattened_columns.push(curr);
+                flattened_columns.push(next);
+            }
+            flattened_public_inputs.append(&mut public_inputs);
+        }
+        Self {
+            flattened_columns,
+            column_starting_indices,
+            flattened_public_inputs,
+            public_input_starting_indices,
+            intermediate_values: vec![],
+        }
     }
 
     /// Returns the columns slice (interleaving current and next rows) for the given `index`.
