@@ -687,6 +687,17 @@ impl<T> Executor<T> {
         )))
     }
 
+    /// Executes the binary operation `f` over the `lhs` and `rhs` values.
+    ///
+    /// See the [`execute`](Self::execute) method for more details.
+    #[inline]
+    pub fn execute_binary_op<F, Output>(&mut self, lhs: Var, rhs: Var, f: F) -> Result<Output, Var>
+    where
+        F: FnOnce(&T, &T) -> Output,
+    {
+        self.execute(&[lhs, rhs], move |[x, y]| f(x, y))
+    }
+
     /// Executes the function `f` over the values of the incoming `variables` assigning its output
     /// to a new intermediate variable which is returned. If any of the variables has no assigned value,
     /// an `Err` is returned with the unknown variable.
@@ -705,6 +716,17 @@ impl<T> Executor<T> {
         let output_value = self.execute(variables, f)?;
         self.intermediate_values.push(output_value);
         Ok(output_variable)
+    }
+
+    /// Executes the binary operation `f` over the `lhs` and `rhs` values.
+    ///
+    /// See the [`execute_assign`](Self::execute_assign) method for more details.
+    #[inline]
+    pub fn execute_assign_binary_op<F>(&mut self, lhs: Var, rhs: Var, f: F) -> Result<Var, Var>
+    where
+        F: FnOnce(&T, &T) -> T,
+    {
+        self.execute_assign(&[lhs, rhs], move |[x, y]| f(x, y))
     }
 }
 
