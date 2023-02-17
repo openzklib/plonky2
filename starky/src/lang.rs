@@ -1442,7 +1442,7 @@ where
             permuted_table: timestamp_permuted,
         });
 
-        // Create Memory =================================================================
+        // CREATE MEMORY =================================================================
 
         Self {
             addr: compiler.allocate(),
@@ -1480,7 +1480,7 @@ impl Stack {
         self.rw_memory.permutations()
     }
 
-    ///
+    /// Assert that `value` is pushed on to the stack.
     #[inline]
     pub fn assert_push<COM>(&self, value: Var, compiler: &mut COM)
     where
@@ -1490,7 +1490,7 @@ impl Stack {
         compiler.assert_eq(self.rw_memory.value.curr, value);
     }
 
-    ///
+    /// Assert that `value` is popped from the stack.
     #[inline]
     pub fn assert_pop<COM>(&self, value: Var, compiler: &mut COM)
     where
