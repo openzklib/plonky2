@@ -30,7 +30,7 @@ pub struct PoseidonPermutationGate<T, F, const CHANNELS: usize> {
     pub round_constants: [T; WIDTH],
 
     // registers for computing sbox monomials
-    pub sbox_registers: [[T; 4]; WIDTH],
+    pub sbox_registers: [[T; 3]; WIDTH],
 
     // phantom
     pub _marker: core::marker::PhantomData<F>,
@@ -174,55 +174,41 @@ where
             .map(|(state, constant)| compiler.add(state, &constant))
             .collect_vec();
 
-        // when in FULL_ROUNDS (first or second)
-        {
-            let cond = compiler.add(&curr_is_first_full_rounds, &curr_is_second_full_rounds);
-            let mut compiler = compiler.when(cond);
+		// apply sbox layer
+		// sbox is x |--> x^7
+		// when in FULL_ROUNDS (first or second), we want to apply it to every state element
+		// when in PARTIAL_ROUNDS, when want to only apply it to the 0th state element only
+		// we do this by computing a^7 + b for each state element `x`, where...
+		//  in PARTIAL ROUNDS, a = 0, b = x for all but the 0th state element, which has a = x, b = 0
+		// 	in FULL ROUNDS, a = x, b = 0
 
-            // apply sbox to all state elements
-            // x |--> x^7
-            for (i, x) in state.iter().enumerate() {
-                let x2 = compiler.square(x);
-                compiler.assert_eq(&x2, &curr.sbox_registers[i][0]);
+		let curr_is_full_rounds = compiler.add(&curr_is_first_full_rounds, &curr_is_second_full_rounds);
 
-                let x3 = compiler.mul(&x, &curr.sbox_registers[i][0]);
-                compiler.assert_eq(&x3, &curr.sbox_registers[i][1]);
+		compiler.assert_eq(&curr.sbox_registers[0][0], &curr.state[0]);
+		let a = curr.sbox_registers[0][0];
+		let a2 = compiler.square(&a);
+		let a3 = compiler.mul(&a, &a2);
+		let a6 = compiler.mul(&curr.sbox_registers[0][1], &curr.sbox_registers[0][1]);
+		let out = compiler.mul(&a6, &a);
 
-                let x4 = compiler.square(&curr.sbox_registers[i][1]);
-                compiler.assert_eq(&x4, &curr.sbox_registers[i][2]);
+		compiler.assert_eq(&a3, &curr.sbox_registers[0][1]);
+		compiler.assert_eq(&out, &curr.sbox_registers[0][2]);
 
-                let x7 = compiler.mul(&x4, &curr.sbox_registers[i][1]);
-                compiler.assert_eq(&x7, &curr.sbox_registers[i][3]);
-            }
-        }
+		for (i, x) in state.iter().enumerate().skip(1) {
+			let a = compiler.mul(&x, &curr_is_full_rounds);
+			let a2 = compiler.square(&a);
+			let a3 = compiler.mul(&a, &a2);
+			let a6 = compiler.mul(&curr.sbox_registers[i][1], &curr.sbox_registers[i][1]);
+			let a7 = compiler.mul(&a6, &a);
+			let b = compiler.mul(&curr_is_partial_rounds, &a);
+			let out = compiler.add(&a7, &b);
+			
+			compiler.assert_eq(&curr.sbox_registers[i][0], &a);
+			compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
+			compiler.assert_eq(&out, &curr.sbox_registers[i][2]);
+		}
 
-        // when in PARTIAL_ROUNDS
-        {
-            let mut compiler = compiler.when(curr_is_partial_rounds);
-
-            // apply sbox only to 0th state element
-            // x |--> x^7
-            let x = state[0];
-            let x2 = compiler.square(&x);
-            compiler.assert_eq(&x2, &curr.sbox_registers[0][0]);
-
-            let x3 = compiler.mul(&x, &curr.sbox_registers[0][0]);
-            compiler.assert_eq(&x3, &curr.sbox_registers[0][1]);
-
-            let x4 = compiler.square(&curr.sbox_registers[0][1]);
-            compiler.assert_eq(&x4, &curr.sbox_registers[0][2]);
-
-            let x7 = compiler.mul(&x4, &curr.sbox_registers[0][1]);
-            compiler.assert_eq(&x7, &curr.sbox_registers[0][3]);
-
-            // copy previous values to sbox registers for other state elements
-
-            for i in 1..WIDTH {
-                compiler.assert_eq(&state[i], &curr.sbox_registers[i][3]);
-            }
-        }
-
-        let state = curr.sbox_registers.iter().map(|sbox| sbox[3]).collect_vec();
+        let state = curr.sbox_registers.iter().map(|sbox| sbox[2]).collect_vec();
 
         // multiply by MDS matrix
         for i in 0..WIDTH {
