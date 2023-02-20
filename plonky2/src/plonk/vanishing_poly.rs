@@ -10,9 +10,7 @@ use crate::iop::ext_target::ExtensionTarget;
 use crate::iop::target::Target;
 use crate::plonk::circuit_builder::CircuitBuilder;
 use crate::plonk::circuit_data::CommonCircuitData;
-use crate::plonk::config::GenericConfig;
-use crate::plonk::plonk_common;
-use crate::plonk::plonk_common::eval_l_0_circuit;
+use crate::plonk::plonk_common::{eval_l_0, eval_l_0_circuit, reduce_with_powers_multi};
 use crate::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBaseBatch};
 use crate::util::partial_products::{check_partial_products, check_partial_products_circuit};
 use crate::util::reducing::ReducingFactorTarget;
@@ -22,11 +20,7 @@ use crate::with_context;
 /// Evaluate the vanishing polynomial at `x`. In this context, the vanishing polynomial is a random
 /// linear combination of gate constraints, plus some other terms relating to the permutation
 /// argument. All such terms should vanish on `H`.
-pub(crate) fn eval_vanishing_poly<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub(crate) fn eval_vanishing_poly<F: RichField + Extendable<D>, const D: usize>(
     common_data: &CommonCircuitData<F, D>,
     x: F::Extension,
     vars: EvaluationVars<F, D>,
@@ -41,14 +35,14 @@ pub(crate) fn eval_vanishing_poly<
     let max_degree = common_data.quotient_degree_factor;
     let num_prods = common_data.num_partial_products;
 
-    let constraint_terms = evaluate_gate_constraints::<F, C, D>(common_data, vars);
+    let constraint_terms = evaluate_gate_constraints::<F, D>(common_data, vars);
 
     // The L_0(x) (Z(x) - 1) vanishing terms.
     let mut vanishing_z_1_terms = Vec::new();
     // The terms checking the partial products.
     let mut vanishing_partial_products_terms = Vec::new();
 
-    let l_0_x = plonk_common::eval_l_0(common_data.degree(), x);
+    let l_0_x = eval_l_0(common_data.degree(), x);
 
     for i in 0..common_data.config.num_challenges {
         let z_x = local_zs[i];
@@ -93,15 +87,11 @@ pub(crate) fn eval_vanishing_poly<
     .concat();
 
     let alphas = &alphas.iter().map(|&a| a.into()).collect::<Vec<_>>();
-    plonk_common::reduce_with_powers_multi(&vanishing_terms, alphas)
+    reduce_with_powers_multi(&vanishing_terms, alphas)
 }
 
 /// Like `eval_vanishing_poly`, but specialized for base field points. Batched.
-pub(crate) fn eval_vanishing_poly_base_batch<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub(crate) fn eval_vanishing_poly_base_batch<F: RichField + Extendable<D>, const D: usize>(
     common_data: &CommonCircuitData<F, D>,
     indices_batch: &[usize],
     xs_batch: &[F],
@@ -129,7 +119,7 @@ pub(crate) fn eval_vanishing_poly_base_batch<
     let num_gate_constraints = common_data.num_gate_constraints;
 
     let constraint_terms_batch =
-        evaluate_gate_constraints_base_batch::<F, C, D>(common_data, vars_batch);
+        evaluate_gate_constraints_base_batch::<F, D>(common_data, vars_batch);
     debug_assert!(constraint_terms_batch.len() == n * num_gate_constraints);
 
     let num_challenges = common_data.config.num_challenges;
@@ -194,7 +184,7 @@ pub(crate) fn eval_vanishing_poly_base_batch<
             .iter()
             .chain(vanishing_partial_products_terms.iter())
             .chain(constraint_terms);
-        let res = plonk_common::reduce_with_powers_multi(vanishing_terms, alphas);
+        let res = reduce_with_powers_multi(vanishing_terms, alphas);
         res_batch.push(res);
 
         vanishing_z_1_terms.clear();
@@ -208,11 +198,7 @@ pub(crate) fn eval_vanishing_poly_base_batch<
 /// `num_gate_constraints` is the largest number of constraints imposed by any gate. It is not
 /// strictly necessary, but it helps performance by ensuring that we allocate a vector with exactly
 /// the capacity that we need.
-pub fn evaluate_gate_constraints<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub fn evaluate_gate_constraints<F: RichField + Extendable<D>, const D: usize>(
     common_data: &CommonCircuitData<F, D>,
     vars: EvaluationVars<F, D>,
 ) -> Vec<F::Extension> {
@@ -242,11 +228,7 @@ pub fn evaluate_gate_constraints<
 /// Returns a vector of `num_gate_constraints * vars_batch.len()` field elements. The constraints
 /// corresponding to `vars_batch[i]` are found in `result[i], result[vars_batch.len() + i],
 /// result[2 * vars_batch.len() + i], ...`.
-pub fn evaluate_gate_constraints_base_batch<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub fn evaluate_gate_constraints_base_batch<F: RichField + Extendable<D>, const D: usize>(
     common_data: &CommonCircuitData<F, D>,
     vars_batch: EvaluationVarsBaseBatch<F>,
 ) -> Vec<F> {
@@ -273,11 +255,7 @@ pub fn evaluate_gate_constraints_base_batch<
     constraints_batch
 }
 
-pub fn evaluate_gate_constraints_circuit<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub fn evaluate_gate_constraints_circuit<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     common_data: &CommonCircuitData<F, D>,
     vars: EvaluationTargets<D>,
@@ -308,11 +286,7 @@ pub fn evaluate_gate_constraints_circuit<
 ///
 /// Assumes `x != 1`; if `x` could be 1 then this is unsound. This is fine if `x` is a random
 /// variable drawn from a sufficiently large domain.
-pub(crate) fn eval_vanishing_poly_circuit<
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-    const D: usize,
->(
+pub(crate) fn eval_vanishing_poly_circuit<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     common_data: &CommonCircuitData<F, D>,
     x: ExtensionTarget<D>,
@@ -332,7 +306,7 @@ pub(crate) fn eval_vanishing_poly_circuit<
     let constraint_terms = with_context!(
         builder,
         "evaluate gate constraints",
-        evaluate_gate_constraints_circuit::<F, C, D>(builder, common_data, vars,)
+        evaluate_gate_constraints_circuit::<F, D>(builder, common_data, vars,)
     );
 
     // The L_0(x) (Z(x) - 1) vanishing terms.

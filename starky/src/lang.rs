@@ -575,16 +575,6 @@ pub struct GenericExecutor<T> {
     /// Machine Column Data Starting Indices
     column_starting_indices: Vec<usize>,
 
-    /// Flattened Public Inputs
-    ///
-    /// Each section of the vector is a flat extension of the public inputs for a given machine.
-    /// The locations of the sections is given by the `public_input_starting_indices` vector,
-    /// storing the machines contiguously.
-    flattened_public_inputs: Vec<T>,
-
-    /// Machine Public Input Starting Indices
-    public_input_starting_indices: Vec<usize>,
-
     /// Intermediate Values
     ///
     /// This is a flat map from indices to values which can represent any intermediate values
@@ -594,36 +584,29 @@ pub struct GenericExecutor<T> {
 
 impl<T> GenericExecutor<T> {
     /// Builds a [`GenericExecutor`] over the machine `data` where each item in the iterator is the
-    /// vector of current-row columns, the vector of next-row columns, and the vector of public
-    /// inputs respectively.
+    /// vector of current-row columns and the vector of next-row columns.
     #[inline]
     pub fn new<I>(data: I) -> Self
     where
-        I: IntoIterator<Item = (Vec<T>, Vec<T>, Vec<T>)>,
+        I: IntoIterator<Item = (Vec<T>, Vec<T>)>,
     {
         let mut flattened_columns = vec![];
         let mut column_starting_indices = vec![];
-        let mut flattened_public_inputs = vec![];
-        let mut public_input_starting_indices = vec![];
-        for (curr, next, mut public_inputs) in data {
+        for (curr, next) in data {
             assert_eq!(
                 curr.len(),
                 next.len(),
                 "Current row and next row must have the same number of columns."
             );
             column_starting_indices.push(flattened_columns.len());
-            public_input_starting_indices.push(flattened_public_inputs.len());
             for (curr, next) in curr.into_iter().zip(next) {
                 flattened_columns.push(curr);
                 flattened_columns.push(next);
             }
-            flattened_public_inputs.append(&mut public_inputs);
         }
         Self {
             flattened_columns,
             column_starting_indices,
-            flattened_public_inputs,
-            public_input_starting_indices,
             intermediate_values: vec![],
         }
     }
@@ -638,16 +621,6 @@ impl<T> GenericExecutor<T> {
         })
     }
 
-    /// Returns the public inputs slice for the given `index`.
-    #[inline]
-    fn public_inputs(&self, index: MachineIndex) -> Option<&[T]> {
-        let start = *self.public_input_starting_indices.get(index.0)?;
-        Some(match self.public_input_starting_indices.get(index.0 + 1) {
-            Some(last) => &self.flattened_public_inputs[start..*last],
-            _ => &self.flattened_public_inputs[start..],
-        })
-    }
-
     /// Returns the value of `variable` if it exists in the executor.
     #[inline]
     pub fn value_of(&self, variable: Var) -> Option<&T> {
@@ -658,7 +631,6 @@ impl<T> GenericExecutor<T> {
                 self.columns(column.machine)?
                     .get(2 * column.index.0 + row_shift)
             }
-            VarData::PublicInput(index) => self.public_inputs(index.machine)?.get(index.index.0),
             VarData::IntermediateVariable(index) => self.intermediate_values.get(index),
         }
     }
@@ -724,32 +696,26 @@ pub struct EmptyExecutor {
     /// Column Counts
     column_counts: Vec<usize>,
 
-    /// Public Input Counts
-    public_input_counts: Vec<usize>,
-
     /// Intermediate Value Count
     intermediate_value_count: usize,
 }
 
 impl EmptyExecutor {
-    /// Builds a new [`EmptyExecutor`] over the machine `counts` data where each item in the
-    /// iterator is a pair with the number of columns and the number of public inputs for that
-    /// machine.
+    /// Builds a new [`EmptyExecutor`] over the machine `column_counts` data where each item in the
+    /// iterator the number of columns for the given machine index.
     #[inline]
-    pub fn new<I>(counts: I) -> Self
+    pub fn new<I>(column_counts: I) -> Self
     where
-        I: IntoIterator<Item = (usize, usize)>,
+        I: IntoIterator<Item = usize>,
     {
-        let (column_counts, public_input_counts) = counts.into_iter().unzip();
         Self {
-            column_counts,
-            public_input_counts,
+            column_counts: column_counts.into_iter().collect(),
             intermediate_value_count: 0,
         }
     }
 
     /// Returns `true` if `variable` was allocated on the correct machine and corresponds to a
-    /// real column or public input or if the `variable` represents a valid intermediate value.
+    /// real column or if the `variable` represents a valid intermediate value.
     #[inline]
     fn is_valid_variable(&self, variable: Var) -> bool {
         match variable.0 {
@@ -759,9 +725,6 @@ impl EmptyExecutor {
             } => {
                 assert!(row_shift < 2, "Only current and next rows are supported!");
                 matches!(self.column_counts.get(machine.0), Some(count) if index.0 < *count)
-            }
-            VarData::PublicInput(PublicInput { machine, index }) => {
-                matches!(self.public_input_counts.get(machine.0), Some(count) if index.0 < *count)
             }
             VarData::IntermediateVariable(index) => index < self.intermediate_value_count,
         }
@@ -882,10 +845,6 @@ pub struct MachineIndex(usize);
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ColumnIndex(usize);
 
-/// Public Input Index
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct PublicInputIndex(usize);
-
 /// Column
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Column {
@@ -894,16 +853,6 @@ pub struct Column {
 
     /// Column Index
     index: ColumnIndex,
-}
-
-/// Public Input
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct PublicInput {
-    /// Machine Index
-    machine: MachineIndex,
-
-    /// Public Input Index
-    index: PublicInputIndex,
 }
 
 /// Variable Data
@@ -920,9 +869,6 @@ enum VarData {
         /// For the current row, `row_shift = 0` and for the next row `row_shift = 1`.
         row_shift: usize,
     },
-
-    /// Public Input Variable
-    PublicInput(PublicInput),
 
     /// Intermediate Variable
     ///
@@ -985,13 +931,21 @@ impl Register {
     }
 }
 
-impl<COM> Machine<COM> for Register {
+///
+pub trait RegisterAllocator {
+    ///
+    fn allocate_register(&mut self) -> Register;
+}
+
+impl<COM> Machine<COM> for Register
+where
+    COM: RegisterAllocator,
+{
     type Metadata = ();
 
     #[inline]
-    fn create(metadata: Self::Metadata, compiler: &mut COM) -> Self {
-        let _ = compiler;
-        todo!()
+    fn create(_: Self::Metadata, compiler: &mut COM) -> Self {
+        compiler.allocate_register()
     }
 }
 

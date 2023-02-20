@@ -31,7 +31,6 @@ impl<C: GenericConfig<D>, const D: usize> VerifierOnlyCircuitData<C, D> {
         );
         let circuit_digest =
             HashOut::from_partial(&slice[len - 4 - 4 * cap_len..len - 4 * cap_len]);
-
         Ok(Self {
             circuit_digest,
             constants_sigmas_cap,
@@ -40,7 +39,7 @@ impl<C: GenericConfig<D>, const D: usize> VerifierOnlyCircuitData<C, D> {
 }
 
 impl VerifierCircuitTarget {
-    fn from_slice<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>(
+    fn from_slice<F: RichField + Extendable<D>, const D: usize>(
         slice: &[Target],
         common_data: &CommonCircuitData<F, D>,
     ) -> Result<Self> {
@@ -57,7 +56,6 @@ impl VerifierCircuitTarget {
         let circuit_digest = HashOutTarget {
             elements: core::array::from_fn(|i| slice[len - 4 - 4 * cap_len + i]),
         };
-
         Ok(Self {
             circuit_digest,
             constants_sigmas_cap,
@@ -101,7 +99,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
             self.goal_common_data = Some(common_data.clone());
         }
 
-        let inner_cyclic_pis = VerifierCircuitTarget::from_slice::<F, C, D>(
+        let inner_cyclic_pis = VerifierCircuitTarget::from_slice::<F, D>(
             &cyclic_proof_with_pis.public_inputs,
             common_data,
         )?;
