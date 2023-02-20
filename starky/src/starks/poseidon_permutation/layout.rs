@@ -174,39 +174,40 @@ where
             .map(|(state, constant)| compiler.add(state, &constant))
             .collect_vec();
 
-		// apply sbox layer
-		// sbox is x |--> x^7
-		// when in FULL_ROUNDS (first or second), we want to apply it to every state element
-		// when in PARTIAL_ROUNDS, when want to only apply it to the 0th state element only
-		// we do this by computing a^7 + b for each state element `x`, where...
-		//  in PARTIAL ROUNDS, a = 0, b = x for all but the 0th state element, which has a = x, b = 0
-		// 	in FULL ROUNDS, a = x, b = 0
+        // apply sbox layer
+        // sbox is x |--> x^7
+        // when in FULL_ROUNDS (first or second), we want to apply it to every state element
+        // when in PARTIAL_ROUNDS, when want to only apply it to the 0th state element only
+        // we do this by computing a^7 + b for each state element `x`, where...
+        //  in PARTIAL ROUNDS, a = 0, b = x for all but the 0th state element, which has a = x, b = 0
+        // 	in FULL ROUNDS, a = x, b = 0
 
-		let curr_is_full_rounds = compiler.add(&curr_is_first_full_rounds, &curr_is_second_full_rounds);
+        let curr_is_full_rounds =
+            compiler.add(&curr_is_first_full_rounds, &curr_is_second_full_rounds);
 
-		compiler.assert_eq(&curr.sbox_registers[0][0], &curr.state[0]);
-		let a = curr.sbox_registers[0][0];
-		let a2 = compiler.square(&a);
-		let a3 = compiler.mul(&a, &a2);
-		let a6 = compiler.mul(&curr.sbox_registers[0][1], &curr.sbox_registers[0][1]);
-		let out = compiler.mul(&a6, &a);
+        compiler.assert_eq(&curr.sbox_registers[0][0], &curr.state[0]);
+        let a = curr.sbox_registers[0][0];
+        let a2 = compiler.square(&a);
+        let a3 = compiler.mul(&a, &a2);
+        let a6 = compiler.mul(&curr.sbox_registers[0][1], &curr.sbox_registers[0][1]);
+        let out = compiler.mul(&a6, &a);
 
-		compiler.assert_eq(&a3, &curr.sbox_registers[0][1]);
-		compiler.assert_eq(&out, &curr.sbox_registers[0][2]);
+        compiler.assert_eq(&a3, &curr.sbox_registers[0][1]);
+        compiler.assert_eq(&out, &curr.sbox_registers[0][2]);
 
-		for (i, x) in state.iter().enumerate().skip(1) {
-			let a = compiler.mul(&x, &curr_is_full_rounds);
-			let a2 = compiler.square(&a);
-			let a3 = compiler.mul(&a, &a2);
-			let a6 = compiler.mul(&curr.sbox_registers[i][1], &curr.sbox_registers[i][1]);
-			let a7 = compiler.mul(&a6, &a);
-			let b = compiler.mul(&curr_is_partial_rounds, &a);
-			let out = compiler.add(&a7, &b);
-			
-			compiler.assert_eq(&curr.sbox_registers[i][0], &a);
-			compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
-			compiler.assert_eq(&out, &curr.sbox_registers[i][2]);
-		}
+        for (i, x) in state.iter().enumerate().skip(1) {
+            let a = compiler.mul(&x, &curr_is_full_rounds);
+            let a2 = compiler.square(&a);
+            let a3 = compiler.mul(&a, &a2);
+            let a6 = compiler.mul(&curr.sbox_registers[i][1], &curr.sbox_registers[i][1]);
+            let a7 = compiler.mul(&a6, &a);
+            let b = compiler.mul(&curr_is_partial_rounds, &a);
+            let out = compiler.add(&a7, &b);
+
+            compiler.assert_eq(&curr.sbox_registers[i][0], &a);
+            compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
+            compiler.assert_eq(&out, &curr.sbox_registers[i][2]);
+        }
 
         let state = curr.sbox_registers.iter().map(|sbox| sbox[2]).collect_vec();
 
