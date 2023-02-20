@@ -1001,13 +1001,19 @@ impl Bool {
 
     ///
     #[inline]
-    pub fn create_unchecked<COM>(compiler: &mut COM) -> Self {
+    pub fn create_unchecked<COM>(compiler: &mut COM) -> Self
+    where
+        COM: RegisterAllocator,
+    {
         Self(compiler.allocate())
     }
 
     ///
     #[inline]
-    pub fn create_unchecked_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self> {
+    pub fn create_unchecked_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self>
+    where
+        COM: RegisterAllocator,
+    {
         (0..len).map(|_| Self::create_unchecked(compiler)).collect()
     }
 
@@ -1015,7 +1021,7 @@ impl Bool {
     #[inline]
     pub fn create_vec<COM>(len: usize, compiler: &mut COM) -> Vec<Self>
     where
-        COM: Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
+        COM: RegisterAllocator + Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
     {
         compiler.allocate_many(len)
     }
@@ -1024,7 +1030,7 @@ impl Bool {
     #[inline]
     pub fn from_register<COM>(register: Register, compiler: &mut COM) -> Self
     where
-        COM: Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
+        COM: RegisterAllocator + Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
     {
         compiler.assert_boolean(register.curr);
         Self(register)
@@ -1046,7 +1052,7 @@ impl Bool {
 
 impl<COM> Machine<COM> for Bool
 where
-    COM: Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
+    COM: RegisterAllocator + Constraint<Var> + Mul<Var> + One<Var> + Sub<Var>,
 {
     type Metadata = ();
 
@@ -1090,7 +1096,13 @@ macro_rules! define_opcode {
 
         impl<COM> Machine<COM> for $name
         where
-            COM: Add<Var> + Constraint<Var> + Mul<Var> + One<Var> + Sub<Var> + Zero<Var>,
+            COM: RegisterAllocator
+                + Add<Var>
+                + Constraint<Var>
+                + Mul<Var>
+                + One<Var>
+                + Sub<Var>
+                + Zero<Var>,
         {
             type Metadata = ();
 
@@ -1190,7 +1202,8 @@ impl Timestamp {
 
 impl<COM> Machine<COM> for Timestamp
 where
-    COM: Constraint<Var>
+    COM: RegisterAllocator
+        + Constraint<Var>
         + ConstraintFiltered<Var, FirstRow>
         + ConstraintFiltered<Var, Transition>
         + One<Var>
@@ -1297,7 +1310,8 @@ impl RwMemory {
 
 impl<COM> Machine<COM> for RwMemory
 where
-    COM: Constraint<Var>
+    COM: RegisterAllocator
+        + Constraint<Var>
         + ConstraintFiltered<Var, FirstRow>
         + ConstraintFiltered<Var, Transition>
         + ConstraintFiltered<Var, LastRow>
@@ -1493,7 +1507,8 @@ impl Stack {
 
 impl<COM> Machine<COM> for Stack
 where
-    COM: Constraint<Var>
+    COM: RegisterAllocator
+        + Constraint<Var>
         + ConstraintFiltered<Var, FirstRow>
         + ConstraintFiltered<Var, Transition>
         + ConstraintFiltered<Var, LastRow>
