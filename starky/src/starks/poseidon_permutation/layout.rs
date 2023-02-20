@@ -189,23 +189,24 @@ where
         let a = curr.sbox_registers[0][0];
         let a2 = compiler.square(&a);
         let a3 = compiler.mul(&a, &a2);
+        compiler.assert_eq(&a3, &curr.sbox_registers[0][1]);
+
         let a6 = compiler.mul(&curr.sbox_registers[0][1], &curr.sbox_registers[0][1]);
         let out = compiler.mul(&a6, &a);
-
-        compiler.assert_eq(&a3, &curr.sbox_registers[0][1]);
         compiler.assert_eq(&out, &curr.sbox_registers[0][2]);
 
         for (i, x) in state.iter().enumerate().skip(1) {
             let a = compiler.mul(&x, &curr_is_full_rounds);
-            let a2 = compiler.square(&a);
-            let a3 = compiler.mul(&a, &a2);
+            compiler.assert_eq(&curr.sbox_registers[i][0], &a);
+
+            let a2 = compiler.square(&curr.sbox_registers[i][0]);
+            let a3 = compiler.mul(&curr.sbox_registers[i][0], &a2);
+            compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
+
             let a6 = compiler.mul(&curr.sbox_registers[i][1], &curr.sbox_registers[i][1]);
             let a7 = compiler.mul(&a6, &a);
             let b = compiler.mul(&curr_is_partial_rounds, &a);
             let out = compiler.add(&a7, &b);
-
-            compiler.assert_eq(&curr.sbox_registers[i][0], &a);
-            compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
             compiler.assert_eq(&out, &curr.sbox_registers[i][2]);
         }
 
