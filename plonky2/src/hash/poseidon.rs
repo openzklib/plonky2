@@ -603,7 +603,6 @@ pub trait Poseidon: PrimeField64 {
 
         state
     }
-    
 
     // For testing only, to ensure that various tricks are correct.
     #[inline]
