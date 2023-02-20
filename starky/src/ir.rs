@@ -313,6 +313,17 @@ pub trait Arithmetic<F>: Add<F> + Mul<F> + One<F> + Sub<F> + Zero<F> {
         let double_product = self.double(&product);
         self.sub(&sum, &double_product)
     }
+
+    #[inline]
+    fn square(&mut self, x: &F) -> F {
+        self.mul(x, x)
+    }
+
+    #[inline]
+    fn mul_add(&mut self, multiplicand_0: &F, multiplicand_1: &F, addend: &F) -> F {
+        let product = self.mul(multiplicand_0, multiplicand_1);
+        self.add(&product, addend)
+    }
 }
 
 impl<F, C> Arithmetic<F> for C where C: Add<F> + Mul<F> + One<F> + Sub<F> + Zero<F> {}
@@ -432,6 +443,17 @@ pub trait Assertions<F>: Sized {
 
     ///
     #[inline]
+    fn assert_one_first_row(&mut self, value: &F) -> &mut Self
+    where
+        Self: ConstraintFiltered<F, FirstRow> + One<F> + Sub<F>,
+    {
+        let one = self.one();
+        let should_be_zero = self.sub(value, &one);
+        self.assert_zero_first_row(&should_be_zero)
+    }
+
+    ///
+    #[inline]
     fn assert_eq_first_row(&mut self, lhs: &F, rhs: &F) -> &mut Self
     where
         Self: ConstraintFiltered<F, FirstRow> + Sub<F>,
@@ -482,9 +504,9 @@ pub trait Assertions<F>: Sized {
 impl<F, COM> Assertions<F> for COM {}
 
 /// Constant Allocation
-pub trait Constant<T, F> {
-    /// Allocates a constant `value` into the field type `F`.
-    fn constant(&mut self, value: &T) -> F;
+pub trait Constant<F, T> {
+    /// Allocates a constant `value` into the field type `T`.
+    fn constant(&mut self, value: &F) -> T;
 }
 
 /// STARK Registers

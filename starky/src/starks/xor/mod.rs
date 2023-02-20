@@ -11,6 +11,7 @@ use crate::stark::{StandardConstraint, StandardConsumer, Stark, StarkConfigurati
 use crate::util::{is_power_of_two, trace_rows_to_poly_values};
 
 /// Bits Values
+#[derive(Clone, Debug)]
 pub struct Bits<T, const N: usize> {
     /// Value
     pub value: T,
