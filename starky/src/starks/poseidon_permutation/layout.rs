@@ -9,25 +9,16 @@ use crate::stark::StandardConstraint;
 use crate::starks::xor::Bits;
 
 const WIDTH: usize = 12;
+const N_ROUND_BITS: usize = N_ROUNDS + 1;
 
 #[derive(Clone, Debug)]
 #[repr(C)]
 pub struct PoseidonPermutationGate<T, F, const CHANNELS: usize> {
-    // 0000: PADDING
-    // 0001: FIRST_FULL_ROUNDS
-    // 0001: PARTIAL_ROUNDS
-    // 0010: SECOND_FULL_ROUNDS
-    // 0100: OUTPUT
-    pub microcode_bits: Bits<T, 4>,
-
     // the ith bit is set at the ith round
-    pub round_bits: Bits<T, N_ROUNDS>,
+    pub round_bits: Bits<T, N_ROUND_BITS>,
 
     // registers for input to the current round
     pub state: [T; WIDTH],
-
-    // registers for current round's round constants
-    pub round_constants: [T; WIDTH],
 
     // registers for computing sbox monomials
     pub sbox_registers: [[T; 3]; WIDTH],
@@ -100,27 +91,17 @@ where
     fn eval(curr: &Self, next: &Self, _: &[T], compiler: &mut COM) {
         let one = compiler.one();
 
-        // MICROCODES
-        // check that the microcode bits are bits and sum to zero or one
-        compiler.assert_boolean(&curr.microcode_bits.value);
-        Bits::assert_valid(&curr.microcode_bits, compiler);
-
-        let curr_is_padding = compiler.sub(&one, &curr.microcode_bits.value);
-        let curr_is_first_full_rounds = curr.microcode_bits.bits[0];
-        let curr_is_partial_rounds = curr.microcode_bits.bits[1];
-        let curr_is_second_full_rounds = curr.microcode_bits.bits[2];
-        let curr_is_output = curr.microcode_bits.bits[3];
-
-        let next_is_padding = compiler.sub(&one, &next.microcode_bits.value);
-        let next_is_first_full_rounds = next.microcode_bits.bits[0];
-        let next_is_partial_rounds = next.microcode_bits.bits[1];
-        let next_is_second_full_rounds = next.microcode_bits.bits[2];
-        let next_is_output = next.microcode_bits.bits[3];
-
         // ROUND BITS
         // check that the round bits are bits and sum to one
         compiler.assert_one(&curr.round_bits.value);
         Bits::assert_valid(&curr.round_bits, compiler);
+
+        // OPCODE SELECTORS
+        // check that the microcode bits are bits and sum to zero or one
+        let curr_is_first_full_rounds = compiler.sum(&curr.round_bits.bits[0..HALF_N_FULL_ROUNDS]);
+        let curr_is_partial_rounds = compiler.sum(&curr.round_bits.bits[HALF_N_FULL_ROUNDS..(HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS)]);
+        let curr_is_second_full_rounds = compiler.sum(&curr.round_bits.bits[(HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS)..(HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS + HALF_N_FULL_ROUNDS)]);
+        let curr_is_output = compiler.sum(&curr.round_bits.bits[(HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS + HALF_N_FULL_ROUNDS)..]);
 
         // ROUND_CONSTANTS
         let all_round_constants = ALL_ROUND_CONSTANTS
@@ -158,24 +139,18 @@ where
             this_round_constants.push(sum);
         }
 
-        // assert current round constants are `this_round_constants`
-        for (curr_round_const, this_round_constants) in
-            curr.round_constants.iter().zip(this_round_constants)
-        {
-            compiler.assert_eq(curr_round_const, &this_round_constants);
-        }
-
         // add round constants
-        // degree 1
+        // degree 2
         let state = curr
             .state
             .iter()
-            .zip(curr.round_constants)
+            .zip(this_round_constants)
             .map(|(state, constant)| compiler.add(state, &constant))
             .collect_vec();
 
         // apply sbox layer
         // sbox is x |--> x^7
+        // | x | x^3 | x x^3 x^3 |
         // when in FULL_ROUNDS (first or second), we want to apply it to every state element
         // when in PARTIAL_ROUNDS, when want to only apply it to the 0th state element only
         // we do this by computing a^7 + b for each state element `x`, where...
@@ -185,7 +160,7 @@ where
         let curr_is_full_rounds =
             compiler.add(&curr_is_first_full_rounds, &curr_is_second_full_rounds);
 
-        compiler.assert_eq(&curr.sbox_registers[0][0], &curr.state[0]);
+        compiler.assert_eq(&curr.sbox_registers[0][0], &state[0]);
         let a = curr.sbox_registers[0][0];
         let a2 = compiler.square(&a);
         let a3 = compiler.mul(&a, &a2);
@@ -196,16 +171,24 @@ where
         compiler.assert_eq(&out, &curr.sbox_registers[0][2]);
 
         for (i, x) in state.iter().enumerate().skip(1) {
+            // sbox_registers[i][0] = x if curr_is_full_rounds else 0
+            // true because `curr_is_full_rounds` is binary
             let a = compiler.mul(&x, &curr_is_full_rounds);
             compiler.assert_eq(&curr.sbox_registers[i][0], &a);
 
+            // sbox_registers[i][1] = sbox_registers[i][0]^3
             let a2 = compiler.square(&curr.sbox_registers[i][0]);
             let a3 = compiler.mul(&curr.sbox_registers[i][0], &a2);
             compiler.assert_eq(&a3, &curr.sbox_registers[i][1]);
 
+            // a7 = sbox_registers[i][1] * sbox_registers[i][1] * sbox_registers[i][1]
             let a6 = compiler.mul(&curr.sbox_registers[i][1], &curr.sbox_registers[i][1]);
             let a7 = compiler.mul(&a6, &a);
-            let b = compiler.mul(&curr_is_partial_rounds, &a);
+
+            // b = x if curr_is_partial_rounds else 0
+            let b = compiler.mul(&curr_is_partial_rounds, &x);
+
+            // sbox_registers[i][2] = a7 + b = x^7 if curr_is_full_rounds else x
             let out = compiler.add(&a7, &b);
             compiler.assert_eq(&out, &curr.sbox_registers[i][2]);
         }
@@ -221,76 +204,25 @@ where
 
             sum = compiler.mul_add(&mds_matrix_diag[i], &state[i], &sum);
 
-            // assurt sum is mds_output[i]
-            compiler.assert_eq_transition(&sum, &next.state[i]);
+            // next.state = sum if we're not in the output row
+            let cond = compiler.sub(&one, &curr_is_output);
+            compiler.when(cond).assert_eq_transition(
+                &sum, &next.state[i]
+            );
         }
 
         // INITIAL
         // round bits start with 0th bit set
         compiler.assert_one_first_row(&curr.round_bits.bits[0]);
 
-        // TRANSITIONS
-        // round bits shifted right by one unless the current microcode is OUTPUT or PADDING
+        // otherwise, round bits shifted right by one
         {
-            let curr_is_output_or_padding = compiler.add(&curr_is_output, &curr_is_padding);
-            let cond = compiler.sub(&one, &curr_is_output_or_padding);
-            let mut compiler = compiler.when(cond);
-
-            for i in 0..N_ROUNDS {
+            // TODO: add "bitshift" gadget to compiler
+            for i in 0..N_ROUND_BITS {
                 let curr_bit = curr.round_bits.bits[i];
-                let next_bit = next.round_bits.bits[(i + 1) % N_ROUNDS];
+                let next_bit = next.round_bits.bits[(i + 1) % N_ROUND_BITS];
                 compiler.assert_eq_transition(&curr_bit, &next_bit);
             }
-        }
-
-        // 0th round bit is set if current microcode is OUTPUT_OR_PADDING
-        {
-            let cond = compiler.add(&curr_is_output, &curr_is_padding);
-            let mut compiler = compiler.when(cond);
-
-            compiler.assert_one(&next.round_bits.bits[0]);
-        }
-
-        // FIRST_FULL_ROUNDS -> PARTIAL_ROUNDS after HALF_N_FULL_ROUNDS
-        {
-            let cond = compiler.mul(&curr_is_first_full_rounds, &next_is_partial_rounds);
-            let mut compiler = compiler.when(cond);
-
-            compiler.assert_one(&curr.round_bits.bits[HALF_N_FULL_ROUNDS - 1]);
-            compiler.assert_one(&next.round_bits.bits[HALF_N_FULL_ROUNDS]);
-        }
-
-        // PARTIAL_ROUNDS -> SECOND_FULL_ROUNDS after HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS
-        {
-            let next_is_second_full_rounds = next.microcode_bits.bits[2];
-            let cond = compiler.mul(&curr_is_partial_rounds, &next_is_second_full_rounds);
-            let mut compiler = compiler.when(cond);
-
-            compiler.assert_one(&curr.round_bits.bits[HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS - 1]);
-            compiler.assert_one(&next.round_bits.bits[HALF_N_FULL_ROUNDS + N_PARTIAL_ROUNDS]);
-        }
-
-        // SECOND_FULL_ROUNDS -> OUTPUT after N_ROUNDS
-        {
-            let next_is_output = next.microcode_bits.bits[3];
-            let cond = compiler.mul(&curr_is_second_full_rounds, &next_is_output);
-            let mut compiler = compiler.when(cond);
-
-            compiler.assert_one(&curr.round_bits.bits[N_ROUNDS - 1]);
-            compiler.assert_one(&next.round_bits.bits[0]);
-        }
-
-        // transition to PADDING only when the current microcode is OUTPUT or PADDING
-        {
-            let mut compiler = compiler.when(next_is_padding);
-            let curr_is_padding_or_output = compiler.add(&curr_is_output, &curr_is_padding);
-            compiler.assert_one(&curr_is_padding_or_output);
-        }
-
-        // always transition to PADDING when current microcode is PADDING
-        {
-            let mut compiler = compiler.when(curr_is_padding);
-            compiler.assert_one(&next_is_padding);
         }
     }
 }
