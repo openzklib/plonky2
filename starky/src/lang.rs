@@ -562,6 +562,12 @@ pub trait Executor<T> {
 /// Generic Executor
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GenericExecutor<T> {
+    /// Zero Value
+    zero: T,
+
+    /// One Value
+    one: T,
+
     /// Flattened Column Data
     ///
     /// Each section of the vector is formatted as
@@ -586,9 +592,10 @@ impl<T> GenericExecutor<T> {
     /// Builds a [`GenericExecutor`] over the machine `data` where each item in the iterator is the
     /// vector of current-row columns and the vector of next-row columns.
     #[inline]
-    pub fn new<I>(data: I) -> Self
+    pub fn new<I, COM>(data: I, compiler: &mut COM) -> Self
     where
         I: IntoIterator<Item = (Vec<T>, Vec<T>)>,
+        COM: One<T> + Zero<T>,
     {
         let mut flattened_columns = vec![];
         let mut column_starting_indices = vec![];
@@ -605,6 +612,8 @@ impl<T> GenericExecutor<T> {
             }
         }
         Self {
+            zero: Zero::zero(compiler),
+            one: One::one(compiler),
             flattened_columns,
             column_starting_indices,
             intermediate_values: vec![],
@@ -625,6 +634,8 @@ impl<T> GenericExecutor<T> {
     #[inline]
     pub fn value_of(&self, variable: Var) -> Option<&T> {
         match variable.0 {
+            VarData::Zero => Some(&self.zero),
+            VarData::One => Some(&self.one),
             VarData::Column { column, row_shift } => {
                 // NOTE: We only support a stride of 2 right now.
                 assert!(row_shift < 2, "Only current and next rows are supported!");
@@ -691,8 +702,9 @@ impl<T> Executor<T> for GenericExecutor<T> {
     }
 }
 
-/// Empty Executor
-pub struct EmptyExecutor {
+/// Counting Executor
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct CountingExecutor {
     /// Column Counts
     column_counts: Vec<usize>,
 
@@ -700,8 +712,8 @@ pub struct EmptyExecutor {
     intermediate_value_count: usize,
 }
 
-impl EmptyExecutor {
-    /// Builds a new [`EmptyExecutor`] over the machine `column_counts` data where each item in the
+impl CountingExecutor {
+    /// Builds a new [`CountingExecutor`] over the machine `column_counts` data where each item in the
     /// iterator the number of columns for the given machine index.
     #[inline]
     pub fn new<I>(column_counts: I) -> Self
@@ -727,11 +739,12 @@ impl EmptyExecutor {
                 matches!(self.column_counts.get(machine.0), Some(count) if index.0 < *count)
             }
             VarData::IntermediateVariable(index) => index < self.intermediate_value_count,
+            VarData::Zero | VarData::One => true,
         }
     }
 }
 
-impl<T> Executor<T> for EmptyExecutor {
+impl<T> Executor<T> for CountingExecutor {
     /// Performs an empty execution by checking that all the variables are within the right bounds
     /// and computes a new intermediate variable. This method will return `Err` whenever one of the
     /// input variables is invalid.
@@ -749,6 +762,109 @@ impl<T> Executor<T> for EmptyExecutor {
         }
         self.intermediate_value_count += 1;
         Ok(output_variable)
+    }
+}
+
+/// Counting Compiler
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct CountingCompiler {
+    /// Executor
+    executor: CountingExecutor,
+
+    /// Current Machine Index
+    current_machine: usize,
+}
+
+impl CountingCompiler {
+    /// Returns the next available [`Column`] for allocation, incrementing the internal counters.
+    #[inline]
+    fn next_column(&mut self) -> Column {
+        let index = &mut self.executor.column_counts[self.current_machine];
+        let column = Column {
+            machine: MachineIndex(self.current_machine),
+            index: ColumnIndex(*index),
+        };
+        *index += 1;
+        column
+    }
+
+    /// Returns the next available [`MachineIndex`] incrementing the internal counters.
+    #[inline]
+    pub fn next_machine(&mut self) -> MachineIndex {
+        let machine = MachineIndex(self.current_machine);
+        self.current_machine += 1;
+        self.executor.column_counts.push(0);
+        machine
+    }
+
+    /// Returns the number of columns for the given `machine`.
+    #[inline]
+    pub fn columns(&self, machine: MachineIndex) -> Option<usize> {
+        self.executor.column_counts.get(machine.0).copied()
+    }
+}
+
+impl RegisterAllocator for CountingCompiler {
+    #[inline]
+    fn allocate_register(&mut self) -> Register {
+        Register::from_column(self.next_column())
+    }
+}
+
+impl Constraint<Var> for CountingCompiler {
+    #[inline]
+    fn assert_zero(&mut self, value: Var) -> &mut Self {
+        let _ = value;
+        self
+    }
+}
+
+impl<Filter> ConstraintFiltered<Var, Filter> for CountingCompiler {
+    #[inline]
+    fn assert_zero_when(&mut self, filter: Filter, value: Var) -> &mut Self {
+        let _ = (filter, value);
+        self
+    }
+}
+
+impl Add<Var> for CountingCompiler {
+    #[inline]
+    fn add(&mut self, lhs: Var, rhs: Var) -> Var {
+        self.executor
+            .execute_binary_op(lhs, rhs, |_, _| ())
+            .expect("Missing variables.")
+    }
+}
+
+impl Mul<Var> for CountingCompiler {
+    #[inline]
+    fn mul(&mut self, lhs: Var, rhs: Var) -> Var {
+        self.executor
+            .execute_binary_op(lhs, rhs, |_, _| ())
+            .expect("Missing variables.")
+    }
+}
+
+impl Sub<Var> for CountingCompiler {
+    #[inline]
+    fn sub(&mut self, lhs: Var, rhs: Var) -> Var {
+        self.executor
+            .execute_binary_op(lhs, rhs, |_, _| ())
+            .expect("Missing variables.")
+    }
+}
+
+impl One<Var> for CountingCompiler {
+    #[inline]
+    fn one(&mut self) -> Var {
+        Var(VarData::One)
+    }
+}
+
+impl Zero<Var> for CountingCompiler {
+    #[inline]
+    fn zero(&mut self) -> Var {
+        Var(VarData::Zero)
     }
 }
 
@@ -858,6 +974,12 @@ pub struct Column {
 /// Variable Data
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum VarData {
+    /// Zero Variable
+    Zero,
+
+    /// One Variable
+    One,
+
     /// Column Variable
     Column {
         /// Column
