@@ -703,7 +703,7 @@ impl<T> Executor<T> for GenericExecutor<T> {
 }
 
 /// Counting Executor
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CountingExecutor {
     /// Column Counts
     column_counts: Vec<usize>,
@@ -720,8 +720,12 @@ impl CountingExecutor {
     where
         I: IntoIterator<Item = usize>,
     {
+        let mut column_counts = column_counts.into_iter().collect::<Vec<_>>();
+        if column_counts.is_empty() {
+            column_counts.push(0);
+        }
         Self {
-            column_counts: column_counts.into_iter().collect(),
+            column_counts,
             intermediate_value_count: 0,
         }
     }
@@ -740,6 +744,16 @@ impl CountingExecutor {
             }
             VarData::IntermediateVariable(index) => index < self.intermediate_value_count,
             VarData::Zero | VarData::One => true,
+        }
+    }
+}
+
+impl Default for CountingExecutor {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            column_counts: vec![0],
+            intermediate_value_count: 0,
         }
     }
 }
@@ -832,7 +846,7 @@ impl Add<Var> for CountingCompiler {
     fn add(&mut self, lhs: Var, rhs: Var) -> Var {
         self.executor
             .execute_binary_op(lhs, rhs, |_, _| ())
-            .expect("Missing variables.")
+            .expect("Unable to add correctly, missing variables.")
     }
 }
 
@@ -841,7 +855,7 @@ impl Mul<Var> for CountingCompiler {
     fn mul(&mut self, lhs: Var, rhs: Var) -> Var {
         self.executor
             .execute_binary_op(lhs, rhs, |_, _| ())
-            .expect("Missing variables.")
+            .expect("Unable to multiply correctly, missing variables.")
     }
 }
 
@@ -850,7 +864,7 @@ impl Sub<Var> for CountingCompiler {
     fn sub(&mut self, lhs: Var, rhs: Var) -> Var {
         self.executor
             .execute_binary_op(lhs, rhs, |_, _| ())
-            .expect("Missing variables.")
+            .expect("Unable to subtract correctly, missing variables.")
     }
 }
 
@@ -957,9 +971,23 @@ pub trait LookupLinker<T> {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MachineIndex(usize);
 
+impl From<usize> for MachineIndex {
+    #[inline]
+    fn from(index: usize) -> Self {
+        Self(index)
+    }
+}
+
 /// Column Index
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ColumnIndex(usize);
+
+impl From<usize> for ColumnIndex {
+    #[inline]
+    fn from(index: usize) -> Self {
+        Self(index)
+    }
+}
 
 /// Column
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1002,6 +1030,20 @@ enum VarData {
 /// Variable
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Var(VarData);
+
+impl Var {
+    /// Returns the zero variable.
+    #[inline]
+    pub fn zero() -> Self {
+        Self(VarData::Zero)
+    }
+
+    /// Returns the one variable.
+    #[inline]
+    pub fn one() -> Self {
+        Self(VarData::One)
+    }
+}
 
 /// Oracle Wiring
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
