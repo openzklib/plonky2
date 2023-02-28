@@ -509,6 +509,13 @@ pub trait Constant<F, T> {
     fn constant(&mut self, value: &F) -> T;
 }
 
+impl<F: Copy> Constant<F, F> for () {
+    #[inline]
+    fn constant(&mut self, value: &F) -> F {
+        *value
+    }
+}
+
 /// STARK Registers
 #[derive(Clone, Copy, Debug)]
 pub struct Registers<'t, T> {

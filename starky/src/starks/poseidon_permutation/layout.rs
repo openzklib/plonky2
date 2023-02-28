@@ -8,8 +8,8 @@ use crate::ir::{Add, Arithmetic, Assertions, Constant, Constraint, Mul};
 use crate::stark::StandardConstraint;
 use crate::starks::xor::Bits;
 
-const WIDTH: usize = 12;
-const N_ROUND_BITS: usize = N_ROUNDS + 1;
+pub(crate) const WIDTH: usize = 12;
+pub(crate) const N_ROUND_BITS: usize = N_ROUNDS + 1;
 
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -83,8 +83,8 @@ impl<T, F, const CHANNELS: usize> Read<T> for PoseidonPermutationGate<T, F, CHAN
 
 impl<T, F, COM, const CHANNELS: usize> Gate<T, COM> for PoseidonPermutationGate<T, F, CHANNELS>
 where
-    F: Poseidon,
     T: Copy,
+    F: Poseidon,
     COM: Arithmetic<T> + StandardConstraint<T> + Constant<F, T>,
 {
     #[inline]
